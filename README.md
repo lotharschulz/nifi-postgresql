@@ -1,1 +1,3 @@
-# nifi_postgresql
+# Apache Nifi & Postgresql
+
+TODO: add more details
