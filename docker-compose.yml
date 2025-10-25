@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     container_name: postgres_cdc
     environment:
-      POSTGRES_DB: demo_db
-      POSTGRES_USER: demo_user
-      POSTGRES_PASSWORD: demo_password
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -26,8 +26,8 @@ services:
     ports:
       - "8443:8443"
     environment:
-      - SINGLE_USER_CREDENTIALS_USERNAME=demo_admin
-      - SINGLE_USER_CREDENTIALS_PASSWORD=4dM!n4dM!n4dM!n
+      - SINGLE_USER_CREDENTIALS_USERNAME=${NIFI_SINGLE_USER_CREDENTIALS_USERNAME}
+      - SINGLE_USER_CREDENTIALS_PASSWORD=${NIFI_SINGLE_USER_CREDENTIALS_PASSWORD}
       - NIFI_WEB_HTTPS_PORT=8443
     volumes:
       - nifi_state:/opt/nifi/nifi-current/state
