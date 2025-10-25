@@ -26,8 +26,8 @@ services:
     ports:
       - "8443:8443"
     environment:
-      - SINGLE_USER_CREDENTIALS_USERNAME=admin
-      - SINGLE_USER_CREDENTIALS_PASSWORD=adminadminadmin
+      - SINGLE_USER_CREDENTIALS_USERNAME=demo_admin
+      - SINGLE_USER_CREDENTIALS_PASSWORD=4dM!n4dM!n4dM!n
       - NIFI_WEB_HTTPS_PORT=8443
     volumes:
       - nifi_state:/opt/nifi/nifi-current/state
