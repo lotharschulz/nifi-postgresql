@@ -62,5 +62,6 @@ EXECUTE FUNCTION create_order_event();
 CREATE PUBLICATION outbox_publication FOR TABLE outbox;
 
 -- Grant necessary permissions
+-- Make sure to replace 'demo_user' with the actual database user in your .env file
 GRANT SELECT ON outbox TO demo_user;
 GRANT USAGE ON SEQUENCE outbox_id_seq TO demo_user;
