@@ -23,7 +23,7 @@ echo "NIFI_PORT: ${NIFI_PORT}"
 # Get authentication token (it's returned as plain text, not JSON)
 TOKEN=$(curl -k -s -X POST "https://${NIFI_HOST}:${NIFI_PORT}/nifi-api/access/token" \
   -H 'Content-Type: application/x-www-form-urlencoded' \
-  -d "username=${NIFI_USERNAME}&password=${NIFI_PASSWORD}")
+  -d "username=${NIFI_SINGLE_USER_CREDENTIALS_USERNAME}&password=${NIFI_SINGLE_USER_CREDENTIALS_PASSWORD}")
 echo "Token (first 50 chars): ${TOKEN:0:50}..."
 ```
 
