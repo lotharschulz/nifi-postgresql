@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<template encoding-version="1.4">
+    <description>PostgreSQL CDC with Outbox Pattern - QueryDatabaseTable, EvaluateJsonPath, and LogAttribute</description>
+    <groupId>root</groupId>
+    <name>PostgreSQL CDC Outbox Flow</name>
+    <snippet>
+        <processGroups>
+            <id>root-group</id>
+            <parentGroupId>root</parentGroupId>
+            <position>
+                <x>0.0</x>
+                <y>0.0</y>
+            </position>
+            <processors>
+                <id>querydatabasetable-001</id>
+                <parentGroupId>root-group</parentGroupId>
+                <position>
+                    <x>100.0</x>
+                    <y>100.0</y>
+                </position>
+                <bundle>
+                    <artifact>nifi-standard-nar</artifact>
+                    <group>org.apache.nifi</group>
+                    <version>1.24.0</version>
+                </bundle>
+                <config>
+                    <bulletinLevel>WARN</bulletinLevel>
+                    <comments></comments>
+                    <concurrentlySchedulableTaskCount>1</concurrentlySchedulableTaskCount>
+                    <descriptors>
+                        <entry>
+                            <key>dbcp-service</key>
+                            <value>
+                                <name>dbcp-service</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>db-type</key>
+                            <value>
+                                <name>db-type</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>Table Name</key>
+                            <value>
+                                <name>Table Name</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>Columns to Return</key>
+                            <value>
+                                <name>Columns to Return</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>Maximum-value Columns</key>
+                            <value>
+                                <name>Maximum-value Columns</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>Max Wait Time</key>
+                            <value>
+                                <name>Max Wait Time</name>
+                            </value>
+                        </entry>
+                    </descriptors>
+                    <executionNode>ALL</executionNode>
+                    <lossTolerant>false</lossTolerant>
+                    <penaltyDuration>30 sec</penaltyDuration>
+                    <properties>
+                        <entry>
+                            <key>dbcp-service</key>
+                            <value>DBCPConnectionPool</value>
+                        </entry>
+                        <entry>
+                            <key>db-type</key>
+                            <value>PostgreSQL</value>
+                        </entry>
+                        <entry>
+                            <key>Table Name</key>
+                            <value>outbox</value>
+                        </entry>
+                        <entry>
+                            <key>Columns to Return</key>
+                            <value></value>
+                        </entry>
+                        <entry>
+                            <key>Maximum-value Columns</key>
+                            <value>id</value>
+                        </entry>
+                        <entry>
+                            <key>Max Wait Time</key>
+                            <value>0 seconds</value>
+                        </entry>
+                    </properties>
+                    <runDurationMillis>0</runDurationMillis>
+                    <schedulingPeriod>5 sec</schedulingPeriod>
+                    <schedulingStrategy>TIMER_DRIVEN</schedulingStrategy>
+                    <yieldDuration>1 sec</yieldDuration>
+                    <autoTerminatedRelationships>
+                        <element>failure</element>
+                    </autoTerminatedRelationships>
+                </config>
+                <name>QueryDatabaseTable</name>
+                <relationships>
+                    <autoTerminate>false</autoTerminate>
+                    <name>success</name>
+                </relationships>
+                <relationships>
+                    <autoTerminate>true</autoTerminate>
+                    <name>failure</name>
+                </relationships>
+                <state>STOPPED</state>
+                <style/>
+                <type>org.apache.nifi.processors.standard.QueryDatabaseTable</type>
+            </processors>
+            <processors>
+                <id>evaluatejsonpath-001</id>
+                <parentGroupId>root-group</parentGroupId>
+                <position>
+                    <x>450.0</x>
+                    <y>100.0</y>
+                </position>
+                <bundle>
+                    <artifact>nifi-standard-nar</artifact>
+                    <group>org.apache.nifi</group>
+                    <version>1.24.0</version>
+                </bundle>
+                <config>
+                    <bulletinLevel>WARN</bulletinLevel>
+                    <comments></comments>
+                    <concurrentlySchedulableTaskCount>1</concurrentlySchedulableTaskCount>
+                    <descriptors>
+                        <entry>
+                            <key>Destination</key>
+                            <value>
+                                <name>Destination</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>event.type</key>
+                            <value>
+                                <name>event.type</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>aggregate.id</key>
+                            <value>
+                                <name>aggregate.id</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>aggregate.type</key>
+                            <value>
+                                <name>aggregate.type</name>
+                            </value>
+                        </entry>
+                    </descriptors>
+                    <executionNode>ALL</executionNode>
+                    <lossTolerant>false</lossTolerant>
+                    <penaltyDuration>30 sec</penaltyDuration>
+                    <properties>
+                        <entry>
+                            <key>Destination</key>
+                            <value>flowfile-attribute</value>
+                        </entry>
+                        <entry>
+                            <key>event.type</key>
+                            <value>$.event_type</value>
+                        </entry>
+                        <entry>
+                            <key>aggregate.id</key>
+                            <value>$.aggregate_id</value>
+                        </entry>
+                        <entry>
+                            <key>aggregate.type</key>
+                            <value>$.aggregate_type</value>
+                        </entry>
+                    </properties>
+                    <runDurationMillis>0</runDurationMillis>
+                    <schedulingPeriod>0 sec</schedulingPeriod>
+                    <schedulingStrategy>TIMER_DRIVEN</schedulingStrategy>
+                    <yieldDuration>1 sec</yieldDuration>
+                    <autoTerminatedRelationships>
+                        <element>failure</element>
+                        <element>unmatched</element>
+                    </autoTerminatedRelationships>
+                </config>
+                <name>EvaluateJsonPath</name>
+                <relationships>
+                    <autoTerminate>false</autoTerminate>
+                    <name>matched</name>
+                </relationships>
+                <relationships>
+                    <autoTerminate>true</autoTerminate>
+                    <name>failure</name>
+                </relationships>
+                <relationships>
+                    <autoTerminate>true</autoTerminate>
+                    <name>unmatched</name>
+                </relationships>
+                <state>STOPPED</state>
+                <style/>
+                <type>org.apache.nifi.processors.standard.EvaluateJsonPath</type>
+            </processors>
+            <processors>
+                <id>logattribute-001</id>
+                <parentGroupId>root-group</parentGroupId>
+                <position>
+                    <x>800.0</x>
+                    <y>100.0</y>
+                </position>
+                <bundle>
+                    <artifact>nifi-standard-nar</artifact>
+                    <group>org.apache.nifi</group>
+                    <version>1.24.0</version>
+                </bundle>
+                <config>
+                    <bulletinLevel>WARN</bulletinLevel>
+                    <comments></comments>
+                    <concurrentlySchedulableTaskCount>1</concurrentlySchedulableTaskCount>
+                    <descriptors>
+                        <entry>
+                            <key>Log Level</key>
+                            <value>
+                                <name>Log Level</name>
+                            </value>
+                        </entry>
+                        <entry>
+                            <key>Log Payload</key>
+                            <value>
+                                <name>Log Payload</name>
+                            </value>
+                        </entry>
+                    </descriptors>
+                    <executionNode>ALL</executionNode>
+                    <lossTolerant>false</lossTolerant>
+                    <penaltyDuration>30 sec</penaltyDuration>
+                    <properties>
+                        <entry>
+                            <key>Log Level</key>
+                            <value>info</value>
+                        </entry>
+                        <entry>
+                            <key>Log Payload</key>
+                            <value>true</value>
+                        </entry>
+                    </properties>
+                    <runDurationMillis>0</runDurationMillis>
+                    <schedulingPeriod>0 sec</schedulingPeriod>
+                    <schedulingStrategy>TIMER_DRIVEN</schedulingStrategy>
+                    <yieldDuration>1 sec</yieldDuration>
+                    <autoTerminatedRelationships>
+                        <element>success</element>
+                    </autoTerminatedRelationships>
+                </config>
+                <name>LogAttribute</name>
+                <relationships>
+                    <autoTerminate>true</autoTerminate>
+                    <name>success</name>
+                </relationships>
+                <state>STOPPED</state>
+                <style/>
+                <type>org.apache.nifi.processors.standard.LogAttribute</type>
+            </processors>
+            <connections>
+                <id>connection-001</id>
+                <parentGroupId>root-group</parentGroupId>
+                <backPressureDataSizeThreshold>1 GB</backPressureDataSizeThreshold>
+                <backPressureObjectThreshold>10000</backPressureObjectThreshold>
+                <destination>
+                    <groupId>root-group</groupId>
+                    <id>evaluatejsonpath-001</id>
+                    <type>PROCESSOR</type>
+                </destination>
+                <flowFileExpiration>0 sec</flowFileExpiration>
+                <labelIndex>1</labelIndex>
+                <name></name>
+                <selectedRelationships>success</selectedRelationships>
+                <source>
+                    <groupId>root-group</groupId>
+                    <id>querydatabasetable-001</id>
+                    <type>PROCESSOR</type>
+                </source>
+                <zIndex>0</zIndex>
+            </connections>
+            <connections>
+                <id>connection-002</id>
+                <parentGroupId>root-group</parentGroupId>
+                <backPressureDataSizeThreshold>1 GB</backPressureDataSizeThreshold>
+                <backPressureObjectThreshold>10000</backPressureObjectThreshold>
+                <destination>
+                    <groupId>root-group</groupId>
+                    <id>logattribute-001</id>
+                    <type>PROCESSOR</type>
+                </destination>
+                <flowFileExpiration>0 sec</flowFileExpiration>
+                <labelIndex>1</labelIndex>
+                <name></name>
+                <selectedRelationships>matched</selectedRelationships>
+                <source>
+                    <groupId>root-group</groupId>
+                    <id>evaluatejsonpath-001</id>
+                    <type>PROCESSOR</type>
+                </source>
+                <zIndex>0</zIndex>
+            </connections>
+        </processGroups>
+    </snippet>
+</template>
