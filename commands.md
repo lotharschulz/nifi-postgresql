@@ -83,3 +83,12 @@ curl -k -X POST "https://${NIFI_HOST}:${NIFI_PORT}/nifi-api/process-groups/${ROO
     \"originY\": 100
   }" | jq '.'
 ```
+
+```sh
+Template ID: 73f0ad32-0d51-40f8-81b9-48c61b4422f0
+Root Process Group ID: 27f60c6f-019a-1000-0678-a161e6597f49
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   181  100    79  100   102    718    927 --:--:-- --:--:-- --:--:--  1660
+jq: parse error: Invalid numeric literal at line 1, column 3
+```
