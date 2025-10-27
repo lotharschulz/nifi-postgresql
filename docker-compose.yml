@@ -33,7 +33,10 @@ services:
       - nifi_state:/opt/nifi/nifi-current/state
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_logs:/opt/nifi/nifi-current/logs
-      - ./jdbc-driver:/opt/nifi/nifi-current/lib/jdbc
+      # Mount the PostgreSQL JDBC driver directly
+      - ./jdbc-driver/postgresql-42.7.1.jar:/opt/nifi/nifi-current/lib/postgresql-42.7.1.jar
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:
