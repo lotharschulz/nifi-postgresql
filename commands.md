@@ -39,7 +39,10 @@ sample response:
 NIFI_HOST: localhost
 NIFI_PORT: 8443
 NIFI_URL: https://localhost:8443
-Token (first 20 chars): eyJraWQiOiJjNTQzODkx...
+POSTGRES_HOST: localhost
+POSTGRES_PORT: 5432
+POSTGRES_DB: demo_db
+Token (first 20 chars): eyJraWQiOiI0OGIxYWVm...
 ```
 
 Get root process group ID
@@ -97,10 +100,11 @@ CONTR_SVC_ID=$(curl -sk -X POST "${NIFI_URL}/nifi-api/process-groups/${PG_ID}/co
                 \"Validation query\": \"SELECT 1\"
             }
         }
-    }") | jq -r '.id'
+    }" | jq -r '.id')
+echo "Controller Service ID: ${CONTR_SVC_ID}"
 
 # Enable the controller service
-curl -sk -X PUT "${NIFI_URL}/nifi-api/controller-services/${CONTR_SVC_ID}" \
+response=$(curl -sk -X PUT "${NIFI_URL}/nifi-api/controller-services/${CONTR_SVC_ID}" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Content-Type: application/json" \
     -d "{
@@ -109,7 +113,25 @@ curl -sk -X PUT "${NIFI_URL}/nifi-api/controller-services/${CONTR_SVC_ID}" \
             \"id\": \"${CONTR_SVC_ID}\",
             \"state\": \"ENABLED\"
         }
-    }" > /dev/null
-    
-echo "Controller Service ID: ${CONTR_SVC_ID}"
+    }" -w " HTTPSTATUS:%{http_code}")
+
+http_code=${response##*HTTPSTATUS:}
+body=${response% HTTPSTATUS:*}
+
+if [ "$http_code" != "200" ]; then
+  echo "Failed to request enable controller service (HTTP $http_code)"
+  echo "$body"
+  exit 1
+else
+  echo "Successfully enabled controller service"
+fi
 ```
+
+sample response:
+```sh
+Controller Service ID: 325c1525-019a-1000-b10e-0dbf1993683e
+Successfully enabled controller service
+```
+
+Create QueryDatabaseTable processor to poll outbox table
+TODO
