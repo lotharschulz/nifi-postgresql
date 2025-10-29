@@ -23,6 +23,10 @@ echo "NIFI_PORT: ${NIFI_PORT}"
 export NIFI_URL="https://${NIFI_HOST}:${NIFI_PORT}"
 echo "NIFI_URL: ${NIFI_URL}"
 
+echo "POSTGRES_HOST: ${POSTGRES_HOST}"
+echo "POSTGRES_PORT: ${POSTGRES_PORT}"
+echo "POSTGRES_DB: ${POSTGRES_DB}"
+
 # Get authentication token (it's returned as plain text, not JSON)
 TOKEN=$(curl -k -s -X POST "${NIFI_URL}/nifi-api/access/token" \
   -H 'Content-Type: application/x-www-form-urlencoded' \
@@ -73,4 +77,39 @@ sample response:
 Process group ID: 2fc04422-019a-1000-a209-e892c78c8934
 ```
 
-next: create_dbcp_service
+Create a controller service
+```sh
+CONTR_SVC_ID=$(curl -sk -X POST "${NIFI_URL}/nifi-api/process-groups/${PG_ID}/controller-services" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{
+        \"revision\": {\"version\": 0},
+        \"component\": {
+            \"name\": \"PostgreSQL Connection Pool\",
+            \"type\": \"org.apache.nifi.dbcp.DBCPConnectionPool\",
+            \"properties\": {
+                \"Database Connection URL\": \"jdbc:postgresql://${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}\",
+                \"Database Driver Class Name\": \"org.postgresql.Driver\",
+                \"Database User\": \"${POSTGRES_USER}\",
+                \"Password\": \"${POSTGRES_PASSWORD}\",
+                \"Max Total Connections\": \"8\",
+                \"Max Idle Connections\": \"0\",
+                \"Validation query\": \"SELECT 1\"
+            }
+        }
+    }") | jq -r '.id'
+
+# Enable the controller service
+curl -sk -X PUT "${NIFI_URL}/nifi-api/controller-services/${CONTR_SVC_ID}" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{
+        \"revision\": {\"version\": 1},
+        \"component\": {
+            \"id\": \"${CONTR_SVC_ID}\",
+            \"state\": \"ENABLED\"
+        }
+    }" > /dev/null
+    
+echo "Controller Service ID: ${CONTR_SVC_ID}"
+```
