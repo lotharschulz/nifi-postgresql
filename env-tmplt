@@ -5,5 +5,5 @@ POSTGRES_PORT=5432
 POSTGRES_DB=demo_db
 POSTGRES_USER=[demo_user]
 POSTGRES_PASSWORD=[demo_users_password]
-NIFI_USERNAME=demo_admin
-NIFI_PASSWORD=[nifi_admin_password]
+NIFI_SINGLE_USER_CREDENTIALS_USERNAME=demo_admin
+NIFI_SINGLE_USER_CREDENTIALS_PASSWORD=[nifi_admin_password]
