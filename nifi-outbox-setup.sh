@@ -4,6 +4,8 @@ IFS=$'\n\t'
 
 # Setup script for Apache NiFi Outbox Pattern with PostgreSQL
 # This script configures NiFi flow using REST API with token-based authentication
+# debugging:
+#  ./nifi-outbox-setup.sh [--dry-run|-n] || echo "Failed with exit code $?"
 
 
 # Dry run flag (no changes applied to NiFi when enabled)
@@ -152,6 +154,10 @@ check_outbox_table() {
 # Function to wait for NiFi to be ready
 wait_for_nifi() {
     echo -e "${YELLOW}Waiting for NiFi to be ready...${NC}"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo -e "${BLUE}[DRY RUN] Skipping NiFi readiness check.${NC}"
+        return 0
+    fi
     max_attempts=60
     attempt=0
     
@@ -172,16 +178,15 @@ wait_for_nifi() {
 # Function to get authentication token
 get_auth_token() {
     echo -e "${YELLOW}Getting authentication token...${NC}"
-    
-    TOKEN=$(curl -k -s -X POST "${NIFI_URL}/nifi-api/access/token" \
-        -H 'Content-Type: application/x-www-form-urlencoded' \
-        -d "username=${NIFI_SINGLE_USER_CREDENTIALS_USERNAME}&password=${NIFI_SINGLE_USER_CREDENTIALS_PASSWORD}")
-    
     if [ "$DRY_RUN" = "1" ]; then
         TOKEN="DRY_RUN_TOKEN"
         echo -e "${BLUE}[DRY RUN] Skipping authentication (using synthetic token).${NC}"
         return 0
     fi
+    
+    TOKEN=$(curl -k -s -X POST "${NIFI_URL}/nifi-api/access/token" \
+        -H 'Content-Type: application/x-www-form-urlencoded' \
+        -d "username=${NIFI_SINGLE_USER_CREDENTIALS_USERNAME}&password=${NIFI_SINGLE_USER_CREDENTIALS_PASSWORD}")
     if [ -z "$TOKEN" ]; then
         echo -e "${RED}Failed to get authentication token${NC}"
         exit 1
@@ -192,10 +197,12 @@ get_auth_token() {
 
 # Function to get root process group ID
 get_root_pg_id() {
-    ROOT_PG_ID=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/process-groups/root" \
-        -H "Authorization: Bearer ${TOKEN}" | \
-        jq -r '.processGroupFlow.id')
-    
+    if [ "$DRY_RUN" = "1" ]; then
+        ROOT_PG_ID="dry-root"
+        echo -e "${BLUE}[DRY RUN] Synthetic Root Process Group ID: ${ROOT_PG_ID}${NC}"
+        return 0
+    fi
+    ROOT_PG_ID=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/process-groups/root" -H "Authorization: Bearer ${TOKEN}" | jq -r '.processGroupFlow.id')
     if [ -z "$ROOT_PG_ID" ] || [ "$ROOT_PG_ID" = "null" ]; then
         echo -e "${RED}Failed to get root process group ID${NC}"
         exit 1
@@ -271,30 +278,11 @@ create_dbcp_service() {
         exit 1
     fi
     
-    # Enable the controller service
-    echo -e "${YELLOW}Enabling Database Connection Pool...${NC}"
-    
-    local response=$(curl -sk -X PUT "${NIFI_URL}/nifi-api/controller-services/${dbcp_id}" \
-        -H "Authorization: Bearer ${TOKEN}" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"revision\": {\"version\": 1},
-            \"component\": {
-                \"id\": \"${dbcp_id}\",
-                \"state\": \"ENABLED\"
-            }
-        }" -w " HTTPSTATUS:%{http_code}")
-    
-    local http_code=${response##*HTTPSTATUS:}
-    
-    if [ "$http_code" != "200" ]; then
-        echo -e "${YELLOW}Note: Controller service will be enabled after configuration${NC}"
-    else
-        echo -e "${GREEN}Database Connection Pool enabled${NC}"
-    fi
+    # Enable the controller service (skip in dry run)
     if [ "$DRY_RUN" = "1" ]; then
         echo -e "${BLUE}[DRY RUN] Would enable controller service ${dbcp_id}.${NC}"
     else
+        echo -e "${YELLOW}Enabling Database Connection Pool...${NC}"
         local response=$(curl -sk -X PUT "${NIFI_URL}/nifi-api/controller-services/${dbcp_id}" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
@@ -328,22 +316,21 @@ create_processor() {
         local fake_id="dry-proc-${RANDOM}"
         echo -e "${BLUE}[DRY RUN] Would create processor '${name}' (${type}) at (${x},${y}) -> ${fake_id}${NC}"
         echo "$fake_id"
-    else
-        local response=$(curl -sk -X POST "${NIFI_URL}/nifi-api/process-groups/${pg_id}/processors" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{
-                \"revision\": {\"version\": 0},
-                \"component\": {
-                    \"type\": \"${type}\",
-                    \"name\": \"${name}\",
-                    \"position\": {\"x\": ${x}, \"y\": ${y}}
-                }
-            }")
-        echo $response | jq -r '.id'
+        return 0
     fi
-    
-    echo $response | jq -r '.id'
+
+    local response=$(curl -sk -X POST "${NIFI_URL}/nifi-api/process-groups/${pg_id}/processors" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"revision\": {\"version\": 0},
+            \"component\": {
+                \"type\": \"${type}\",
+                \"name\": \"${name}\",
+                \"position\": {\"x\": ${x}, \"y\": ${y}}
+            }
+        }")
+    echo "$response" | jq -r '.id'
 }
 
 # Function to configure processor with retry logic
@@ -355,6 +342,11 @@ configure_processor_with_retry() {
     local max_attempts=5
     local attempt=1
     local success=false
+
+    if [ "$DRY_RUN" = "1" ]; then
+        echo -e "${BLUE}[DRY RUN] Would configure processor ${processor_name} (${processor_id}).${NC}"
+        return 0
+    fi
 
     while [ $attempt -le $max_attempts ]; do
         local proc_state=$(curl -sk -X GET "${NIFI_URL}/nifi-api/processors/${processor_id}" \
@@ -670,76 +662,80 @@ main() {
     # Validate environment first
     validate_env
 
-    # Wait for NiFi to be ready
-    wait_for_nifi
-    
-    # Get authentication token
-    get_auth_token
-    
-    # Pre DB sanity check
-    check_outbox_table
-
-    # Get root process group ID
-    get_root_pg_id
-
-    # Idempotent: see if PG already exists
-    echo -e "${YELLOW}Looking for existing 'PostgreSQL Outbox Pattern' process group...${NC}"
-    PG_ID=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/process-groups/root" -H "Authorization: Bearer ${TOKEN}" | jq -r '.processGroupFlow.flow.processGroups[]? | select(.component.name=="PostgreSQL Outbox Pattern") | .component.id' | head -1)
-    if [ -n "$PG_ID" ]; then
-        echo -e "${GREEN}Reusing existing process group: ${PG_ID}${NC}"
-    else
-        echo -e "${YELLOW}Creating Outbox Pattern process group...${NC}"
-        PG_ID=$(create_process_group "${ROOT_PG_ID}" "PostgreSQL Outbox Pattern")
-        echo -e "${GREEN}Created Process Group: ${PG_ID}${NC}"
-    fi
-
-    # Create / reuse parameter context for DB values
-    echo -e "${YELLOW}Ensuring parameter context 'Outbox-DB' exists...${NC}"
-    PARAM_CTX_ID=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/parameter-contexts" -H "Authorization: Bearer ${TOKEN}" | jq -r '.parameterContexts[]? | select(.component.name=="Outbox-DB") | .id' | head -1)
-    if [ -z "$PARAM_CTX_ID" ]; then
-        PARAM_CTX_ID=$(curl -sk -X POST "${NIFI_URL}/nifi-api/parameter-contexts" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{
-                \"revision\": {\"version\": 0},
-                \"component\": {
-                    \"name\": \"Outbox-DB\",
-                    \"parameters\": [
-                        {\"parameter\": {\"name\": \"DB_HOST\", \"value\": \"${POSTGRES_HOST}\"}},
-                        {\"parameter\": {\"name\": \"DB_PORT\", \"value\": \"${POSTGRES_PORT}\"}},
-                        {\"parameter\": {\"name\": \"DB_NAME\", \"value\": \"${POSTGRES_DB}\"}},
-                        {\"parameter\": {\"name\": \"DB_USER\", \"value\": \"${POSTGRES_USER}\"}},
-                        {\"parameter\": {\"name\": \"DB_PASSWORD\", \"value\": \"${POSTGRES_PASSWORD}\", \"sensitive\": true}}
-                    ]
-                }
-            }" | jq -r '.id')
-        echo -e "${GREEN}Created parameter context: ${PARAM_CTX_ID}${NC}"
-    else
-        echo -e "${GREEN}Reusing parameter context: ${PARAM_CTX_ID}${NC}"
-    fi
-
-    # Assign parameter context to process group (fetch PG revision first)
-    PG_ENTITY=$(curl -sk -X GET "${NIFI_URL}/nifi-api/process-groups/${PG_ID}" -H "Authorization: Bearer ${TOKEN}")
-    PG_REV=$(echo "$PG_ENTITY" | jq -r '.revision.version')
-    PG_CLIENT_ID=$(echo "$PG_ENTITY" | jq -r '.revision.clientId // empty')
-    if [ -n "$PG_CLIENT_ID" ]; then
-        PG_REV_BLOCK="{\"version\": ${PG_REV}, \"clientId\": \"${PG_CLIENT_ID}\"}"
-    else
-        PG_REV_BLOCK="{\"version\": ${PG_REV}}"
-    fi
     if [ "$DRY_RUN" = "1" ]; then
-        echo -e "${BLUE}[DRY RUN] Would assign parameter context ${PARAM_CTX_ID} to process group ${PG_ID}.${NC}"
+        echo -e "${BLUE}[DRY RUN] Short-circuiting NiFi API calls; synthesizing IDs and skipping connectivity checks.${NC}"
+        ROOT_PG_ID="dry-root"
+        PG_ID="dry-pg-PostgreSQL-Outbox-Pattern"
+        PARAM_CTX_ID="dry-paramctx-Outbox-DB"
+        DBCP_ID="dry-dbcp-${PG_ID}"
     else
+        # Wait for NiFi to be ready
+        wait_for_nifi
+
+        # Get authentication token
+        get_auth_token
+
+        # Pre DB sanity check
+        check_outbox_table
+
+        # Get root process group ID
+        get_root_pg_id
+
+        # Idempotent: see if PG already exists
+        echo -e "${YELLOW}Looking for existing 'PostgreSQL Outbox Pattern' process group...${NC}"
+        PG_ID=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/process-groups/root" -H "Authorization: Bearer ${TOKEN}" | jq -r '.processGroupFlow.flow.processGroups[]? | select(.component.name=="PostgreSQL Outbox Pattern") | .component.id' | head -1)
+        if [ -n "$PG_ID" ]; then
+            echo -e "${GREEN}Reusing existing process group: ${PG_ID}${NC}"
+        else
+            echo -e "${YELLOW}Creating Outbox Pattern process group...${NC}"
+            PG_ID=$(create_process_group "${ROOT_PG_ID}" "PostgreSQL Outbox Pattern")
+            echo -e "${GREEN}Created Process Group: ${PG_ID}${NC}"
+        fi
+
+        # Create / reuse parameter context for DB values
+        echo -e "${YELLOW}Ensuring parameter context 'Outbox-DB' exists...${NC}"
+        PARAM_CTX_ID=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/parameter-contexts" -H "Authorization: Bearer ${TOKEN}" | jq -r '.parameterContexts[]? | select(.component.name=="Outbox-DB") | .id' | head -1)
+        if [ -z "$PARAM_CTX_ID" ]; then
+            PARAM_CTX_ID=$(curl -sk -X POST "${NIFI_URL}/nifi-api/parameter-contexts" \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{
+                    \"revision\": {\"version\": 0},
+                    \"component\": {
+                        \"name\": \"Outbox-DB\",
+                        \"parameters\": [
+                            {\"parameter\": {\"name\": \"DB_HOST\", \"value\": \"${POSTGRES_HOST}\"}},
+                            {\"parameter\": {\"name\": \"DB_PORT\", \"value\": \"${POSTGRES_PORT}\"}},
+                            {\"parameter\": {\"name\": \"DB_NAME\", \"value\": \"${POSTGRES_DB}\"}},
+                            {\"parameter\": {\"name\": \"DB_USER\", \"value\": \"${POSTGRES_USER}\"}},
+                            {\"parameter\": {\"name\": \"DB_PASSWORD\", \"value\": \"${POSTGRES_PASSWORD}\", \"sensitive\": true}}
+                        ]
+                    }
+                }" | jq -r '.id')
+            echo -e "${GREEN}Created parameter context: ${PARAM_CTX_ID}${NC}"
+        else
+            echo -e "${GREEN}Reusing parameter context: ${PARAM_CTX_ID}${NC}"
+        fi
+
+        # Assign parameter context to process group (fetch PG revision first)
+        PG_ENTITY=$(curl -sk -X GET "${NIFI_URL}/nifi-api/process-groups/${PG_ID}" -H "Authorization: Bearer ${TOKEN}")
+        PG_REV=$(echo "$PG_ENTITY" | jq -r '.revision.version')
+        PG_CLIENT_ID=$(echo "$PG_ENTITY" | jq -r '.revision.clientId // empty')
+        if [ -n "$PG_CLIENT_ID" ]; then
+            PG_REV_BLOCK="{\"version\": ${PG_REV}, \"clientId\": \"${PG_CLIENT_ID}\"}"
+        else
+            PG_REV_BLOCK="{\"version\": ${PG_REV}}"
+        fi
         curl -sk -X PUT "${NIFI_URL}/nifi-api/process-groups/${PG_ID}" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
             -d "{ \"revision\": ${PG_REV_BLOCK}, \"component\": { \"id\": \"${PG_ID}\", \"parameterContext\": { \"id\": \"${PARAM_CTX_ID}\" } } }" >/dev/null
         echo -e "${GREEN}Parameter context assigned to process group.${NC}"
+
+        # Create Database Connection Pool
+        DBCP_ID=$(create_dbcp_service "${PG_ID}")
+        echo -e "${GREEN}Created Database Connection Pool: ${DBCP_ID}${NC}"
     fi
-    
-    # Create Database Connection Pool
-    DBCP_ID=$(create_dbcp_service "${PG_ID}")
-    echo -e "${GREEN}Created Database Connection Pool: ${DBCP_ID}${NC}"
     
     # Create processors
     echo -e "${YELLOW}Creating processors...${NC}"
