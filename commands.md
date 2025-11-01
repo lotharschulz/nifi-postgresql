@@ -301,4 +301,81 @@ Successfully configured QueryDatabaseTable processor
 ```
 
 ### 2. ConvertAvroToJSON - Convert Avro to JSON
-TODO
+
+```sh
+# create ConvertAvroToJSON processor
+AVRO_TO_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.kite.ConvertAvroToJSON" "Convert to JSON" 400 100)
+echo "Avro to JSON converter processor ID: ${AVRO_TO_JSON_ID}"
+
+# Configure processor with dynamic revision (NiFi uses optimistic locking)
+# Retry a few times in case another operation updated the processor concurrently.
+max_attempts=5
+attempt=1
+success=false
+while [ $attempt -le $max_attempts ]; do
+    # Fetch latest revision info
+    proc_state=$(curl -sk -X GET "${NIFI_URL}/nifi-api/processors/${AVRO_TO_JSON_ID}" \
+        -H "Authorization: Bearer ${TOKEN}")
+    REV_VERSION=$(echo "$proc_state" | jq -r '.revision.version')
+    REV_CLIENT_ID=$(echo "$proc_state" | jq -r '.revision.clientId // empty')
+    
+    # Build revision JSON - handle optional clientId
+    if [ -z "$REV_CLIENT_ID" ] || [ "$REV_CLIENT_ID" = "null" ]; then
+        revision_json="{\"version\": ${REV_VERSION}}"
+    else
+        revision_json="{\"version\": ${REV_VERSION}, \"clientId\": \"${REV_CLIENT_ID}\"}"
+    fi
+
+    response=$(curl -sk -X PUT "${NIFI_URL}/nifi-api/processors/${AVRO_TO_JSON_ID}" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"revision\": ${revision_json},
+            \"component\": {
+                \"id\": \"${AVRO_TO_JSON_ID}\",
+                \"config\": {
+                    \"properties\": {
+                        \"JSON container options\": \"array\",
+                        \"Wrap Single Record\": \"false\"
+                    },
+                    \"schedulingPeriod\": \"0 sec\",
+                    \"schedulingStrategy\": \"TIMER_DRIVEN\",
+                    \"executionNode\": \"ALL\",
+                    \"penaltyDuration\": \"30 sec\",
+                    \"yieldDuration\": \"1 sec\",
+                    \"bulletinLevel\": \"WARN\",
+                    \"runDurationMillis\": 0,
+                    \"concurrentlySchedulableTaskCount\": 1,
+                    \"autoTerminatedRelationships\": [\"failure\"],
+                    \"comments\": \"Converts Avro records to JSON format\"
+                }
+            }
+        }" -w " HTTPSTATUS:%{http_code}")
+
+    http_code=${response##*HTTPSTATUS:}
+    body=${response% HTTPSTATUS:*}
+
+    if [ "$http_code" = "200" ]; then
+        echo "Successfully configured ConvertAvroToJSON processor"
+        success=true
+        break
+    fi
+
+    echo "Attempt $attempt failed (HTTP $http_code)."
+    echo "$body" | grep -q "not the most up-to-date revision"
+    if [ $? -eq 0 ]; then
+        echo "Revision conflict detected; retrying after brief pause..."
+        sleep 1
+    else
+        echo "Failed to configure ConvertAvroToJSON Processor (HTTP $http_code)"
+        echo "$body"
+        break
+    fi
+    attempt=$((attempt + 1))
+done
+
+if [ "$success" != true ]; then
+    echo "Configuration did not succeed after $max_attempts attempts." >&2
+    exit 1
+fi
+```
