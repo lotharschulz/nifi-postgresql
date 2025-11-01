@@ -1,14 +1,3 @@
-# Function to configure ConvertRecord (placeholder without readers/writers yet)
-configure_convert_record_processor() {
-    local processor_id=$1
-    local config
-    if command -v jq >/dev/null 2>&1; then
-        config=$(jq -n '{component:{config:{schedulingPeriod:"30 sec",schedulingStrategy:"TIMER_DRIVEN",properties:{}}}}')
-    else
-        config='{"component":{"config":{"schedulingPeriod":"30 sec","schedulingStrategy":"TIMER_DRIVEN","properties":{}}}}'
-    fi
-    configure_processor_with_retry "$processor_id" "$config" "ConvertRecord"
-}
 #!/bin/bash
 set -euo pipefail
 IFS=$'\n\t'
@@ -65,6 +54,18 @@ if [ "$DRY_RUN" = "1" ]; then
     echo -e "${BLUE}[DRY RUN] No changes will be applied. Showing intended actions only.${NC}"
 fi
 # ---------------- Helper utilities -----------------
+
+# Function to configure ConvertRecord (placeholder without readers/writers yet)
+configure_convert_record_processor() {
+    local processor_id=$1
+    local config
+    if command -v jq >/dev/null 2>&1; then
+        config=$(jq -n '{component:{config:{schedulingPeriod:"30 sec",schedulingStrategy:"TIMER_DRIVEN",properties:{}}}}')
+    else
+        config='{"component":{"config":{"schedulingPeriod":"30 sec","schedulingStrategy":"TIMER_DRIVEN","properties":{}}}}'
+    fi
+    configure_processor_with_retry "$processor_id" "$config" "ConvertRecord"
+}
 
 # Validate required environment variables are present and non-empty
 validate_env() {
@@ -843,7 +844,6 @@ main() {
         echo -e "${RED}Skipping configuration of QueryDatabaseTable due to creation failure${NC}" >&2
     else
         echo -e "${YELLOW}Processor ${QUERY_DB_ID} created, waiting for DBCP to be ready...${NC}"
-        sleep 5
         configure_query_db_processor "${QUERY_DB_ID}" "${DBCP_ID}"
         echo -e "${GREEN}Configured QueryDatabaseTable processor${NC}"
     fi
@@ -855,7 +855,6 @@ main() {
         echo -e "${RED}Skipping configuration of ConvertAvroToJSON due to creation failure${NC}" >&2
     else
         echo -e "${YELLOW}Processor ${AVRO_TO_JSON_ID} created, waiting...${NC}"
-        sleep 5
     # Using ConvertRecord instead of deprecated/absent ConvertAvroToJSON
         configure_convert_record_processor "${AVRO_TO_JSON_ID}"
         echo -e "${GREEN}Configured ConvertRecord processor (JSON passthrough)${NC}"
@@ -867,7 +866,6 @@ main() {
         echo -e "${RED}Skipping configuration of SplitJson due to creation failure${NC}" >&2
     else
         echo -e "${YELLOW}Processor ${SPLIT_JSON_ID} created, waiting...${NC}"
-        sleep 5
         configure_split_json_processor "${SPLIT_JSON_ID}"
         echo -e "${GREEN}Configured SplitJson processor${NC}"
     fi
@@ -878,7 +876,6 @@ main() {
         echo -e "${RED}Skipping configuration of EvaluateJsonPath due to creation failure${NC}" >&2
     else
         echo -e "${YELLOW}Processor ${EVAL_JSON_ID} created, waiting...${NC}"
-        sleep 5
         configure_evaluate_json_processor "${EVAL_JSON_ID}"
         echo -e "${GREEN}Configured EvaluateJsonPath processor${NC}"
     fi
@@ -889,7 +886,6 @@ main() {
         echo -e "${RED}Skipping configuration of LogAttribute due to creation failure${NC}" >&2
     else
         echo -e "${YELLOW}Processor ${LOG_ATTR_ID} created, waiting...${NC}"
-        sleep 5
         configure_publish_processor "${LOG_ATTR_ID}"
         echo -e "${GREEN}Configured LogAttribute processor (placeholder for publisher)${NC}"
     fi
@@ -900,7 +896,6 @@ main() {
         echo -e "${RED}Skipping configuration of UpdateAttribute due to creation failure${NC}" >&2
     else
         echo -e "${YELLOW}Processor ${UPDATE_ATTR_ID} created, waiting...${NC}"
-        sleep 5
         configure_update_attribute_processor "${UPDATE_ATTR_ID}"
         echo -e "${GREEN}Configured UpdateAttribute processor${NC}"
     fi
@@ -911,7 +906,6 @@ main() {
         echo -e "${RED}Skipping configuration of PutSQL due to creation failure${NC}" >&2
     else
         echo -e "${YELLOW}Processor ${PUT_SQL_ID} created, waiting...${NC}"
-        sleep 5
         configure_cleanup_processor "${PUT_SQL_ID}" "${DBCP_ID}"
         echo -e "${GREEN}Configured PutSQL processor${NC}"
     fi
@@ -949,7 +943,7 @@ main() {
     echo -e "4. Start the processors to begin processing"
     echo -e "5. Insert test data using: ./test-outbox.sh"
     echo -e "\n${YELLOW}Note:${NC} The LogAttribute processor is a placeholder."
-    echo -e "Replace it with your actual message broker (Kafka, RabbitMQ, etc.)"
+    echo -e "You may replace it with your actual message broker (Kafka, RabbitMQ, etc.)"
 }
 
 # Run main function
