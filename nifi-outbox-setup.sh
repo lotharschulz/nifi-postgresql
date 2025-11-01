@@ -5,7 +5,7 @@ IFS=$'\n\t'
 # Setup script for Apache NiFi Outbox Pattern with PostgreSQL
 # This script configures NiFi flow using REST API with token-based authentication
 
-# debugging:
+# debugging options:
 # 1)
 #  ./nifi-outbox-setup.sh [--dry-run|-n] || echo "Failed with exit code $?"
 # 2)

@@ -7,6 +7,15 @@ IFS=$'\n\t'
 # Creates a separate process group and parameter context (names unique).
 # Supports DRY_RUN and DEBUG environment variables similar to outbox script.
 
+# debugging options:
+# 1)
+#  ./nifi-cdc-setup.sh [--dry-run|-n] || echo "Failed with exit code $?"
+# 2)
+#  export DEBUG=1
+#  ./nifi-cdc-setup.sh
+#  unset DEBUG
+#  ./nifi-cdc-setup.sh
+
 DRY_RUN=0
 for arg in "$@"; do
   case "$arg" in
@@ -109,7 +118,12 @@ assign_param_ctx() {
 
 create_processor() {
   local pg_id=$1 type=$2 name=$3 x=$4 y=$5
-  if [ "$DRY_RUN" = 1 ]; then echo "dry-proc-${RANDOM}"; debug "Create processor ${name} (dry)"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then
+    local mock="dry-proc-${name// /-}-${RANDOM}"
+    debug "[DRY] Create processor ${name} -> ${mock}"
+    echo "$mock"
+    return 0
+  fi
   local payload
   payload=$(cat <<EOF
 {"revision":{"version":0},"component":{"type":"${type}","name":"${name}","position":{"x":${x},"y":${y}}}}
@@ -124,17 +138,22 @@ EOF
 
 configure_with_retry() {
   local pid=$1 name=$2 config_json=$3
-  [ "$DRY_RUN" = 1 ] && debug "Skip configure ${name} (dry)" && return 0
+  if [ "$DRY_RUN" = 1 ]; then
+    debug "[DRY] Would configure ${name} (processor id ${pid})"
+    return 0
+  fi
   local attempts=0 max=5
   while [ $attempts -lt $max ]; do
     local st=$(curl -sk -X GET "${NIFI_URL}/nifi-api/processors/${pid}" -H "Authorization: Bearer ${TOKEN}")
     local ver=$(echo "$st" | jq -r '.revision.version')
     local cid=$(echo "$st" | jq -r '.revision.clientId // empty')
     [ -z "$ver" ] && err "No revision for ${name}" && return 1
-    local rev_block
-    [ -n "$cid" ] && rev_block="{\"version\":${ver},\"clientId\":\"${cid}\"}" || rev_block="{\"version\":${ver}}"
+    # Build PUT payload with jq (avoid embedded escaped JSON issues)
     local full
-    full=$(jq -n --arg id "$pid" --argjson cfg "$(echo "$config_json" | jq '.component.config')" --argjson rev "$rev_block" '{revision: $rev, component:{id:$id, config:$cfg}}' 2>/dev/null || printf '{"revision":%s,"component":{"id":"%s","config":%s}}' "$rev_block" "$pid" "$(echo "$config_json" | jq -r '.component.config')")
+    full=$(jq -n --arg id "$pid" --arg ver "$ver" --arg cid "$cid" --argjson cfg "$(echo "$config_json" | jq '.component.config')" '
+      {revision: ( if $cid != "" then {version: ($ver|tonumber), clientId: $cid} else {version: ($ver|tonumber)} end ),
+       component: {id: $id, config: $cfg}}'
+    )
     debug "PUT payload for ${name}: $full"
     local resp=$(curl -sk -X PUT "${NIFI_URL}/nifi-api/processors/${pid}" -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' -d "$full" -w ' HTTPSTATUS:%{http_code}')
     local code=${resp##*HTTPSTATUS:}; local body=${resp% HTTPSTATUS:*}
@@ -147,12 +166,20 @@ configure_with_retry() {
 
 # Build config JSON helpers
 cfg_capture_change() {
-  local dbcp_id=$1 slot=$2 table_expressions=$3
-  jq -n --arg dbcp "$dbcp_id" --arg slot "$slot" --arg exprs "$table_expressions" '{component:{config:{properties:{"Database Connection Pooling Service":$dbcp,"CDC Slot Name":$slot,"Table Include List":$exprs,"Output Format":"Avro"},schedulingPeriod:"30 sec",schedulingStrategy:"TIMER_DRIVEN",executionNode:"PRIMARY",penaltyDuration:"30 sec",yieldDuration:"1 sec",bulletinLevel:"WARN",runDurationMillis:0,concurrentlySchedulableTaskCount:1,autoTerminatedRelationships:["error"],comments:"Captures CDC changes from PostgreSQL logical replication slot"}}}' 2>/dev/null || echo '{"component":{"config":{"properties":{}}}}'
+    local dbcp_id=$1 
+    slot=$2 
+    table_expressions=$3
+    jq -n --arg dbcp "$dbcp_id" --arg slot "$slot" --arg exprs "$table_expressions" '{component:{config:{properties:{"Database Connection Pooling Service":$dbcp,"CDC Slot Name":$slot,"Table Include List":$exprs,"Output Format":"Avro"},schedulingPeriod:"30 sec",schedulingStrategy:"TIMER_DRIVEN",executionNode:"PRIMARY",penaltyDuration:"30 sec",yieldDuration:"1 sec",bulletinLevel:"WARN",runDurationMillis:0,concurrentlySchedulableTaskCount:1,autoTerminatedRelationships:["error"],comments:"Captures CDC changes from PostgreSQL logical replication slot"}}}'
 }
 
 cfg_route_event() {
-  jq -n '{component:{config:{properties:{"Routing Strategy":"Random","Cache Identifier":"cdc-cache"},schedulingPeriod:"0 sec",schedulingStrategy:"TIMER_DRIVEN",executionNode:"ALL",penaltyDuration:"30 sec",yieldDuration:"1 sec",bulletinLevel:"WARN",runDurationMillis:0,concurrentlySchedulableTaskCount:1,autoTerminatedRelationships:["failure"],comments:"Routes CDC events"}}}' 2>/dev/null || echo '{"component":{"config":{"properties":{}}}}'
+    jq -n '{component:{config:{properties:{"Routing Strategy":"Random","Cache Identifier":"cdc-cache"},schedulingPeriod:"0 sec",schedulingStrategy:"TIMER_DRIVEN",executionNode:"ALL",penaltyDuration:"30 sec",yieldDuration:"1 sec",bulletinLevel:"WARN",runDurationMillis:0,concurrentlySchedulableTaskCount:1,autoTerminatedRelationships:["failure"],comments:"Routes CDC events"}}}'
+}
+
+# Fallback incremental polling config builder (when CaptureChangePostgreSQL unavailable)
+cfg_poll_fallback() {
+    local dbcp_id=$1
+    jq -n --arg dbcp "$dbcp_id" '{component:{config:{properties:{"Database Connection Pooling Service":$dbcp,"Database Type":"PostgreSQL","Table Name":"outbox","Maximum-value Columns":"id","Fetch Size":"100","Max Rows Per Flow File":"100"},schedulingPeriod:"30 sec",schedulingStrategy:"TIMER_DRIVEN",executionNode:"PRIMARY",penaltyDuration:"30 sec",yieldDuration:"1 sec",bulletinLevel:"WARN",runDurationMillis:0,concurrentlySchedulableTaskCount:1,autoTerminatedRelationships:[],comments:"Fallback incremental polling as CDC substitute"}}}'
 }
 
 create_dbcp_service() {
@@ -180,11 +207,23 @@ main() {
   local DBCP_ID=$(create_dbcp_service "$PG_ID")
   info "DBCP Service (CDC) ID: $DBCP_ID"
 
+  # In dry-run mode we stop after controller service mock to show planned actions
+  if [ "$DRY_RUN" = 1 ]; then
+    warn "Dry-run complete (skipping processor creation & connections)."
+    info "NiFi CDC Pattern Setup (dry-run) finished successfully."
+    return 0
+  fi
+
   # Processors
   # Capture Change (if available else fallback to QueryDatabaseTable incremental pattern)
   local CAPTURE_TYPE="org.apache.nifi.processors.standard.CaptureChangePostgreSQL"
   # Probe availability (bundle list)
-  local available=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/process-groups/root" -H "Authorization: Bearer ${TOKEN}" | grep -F "$CAPTURE_TYPE" || true)
+  local available=""
+  if [ "$DRY_RUN" != 1 ]; then
+    available=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/process-groups/root" -H "Authorization: Bearer ${TOKEN}" | grep -F "$CAPTURE_TYPE" || true)
+  else
+    debug "[DRY] Skipping processor availability probe"
+  fi
   if [ -n "$available" ]; then
     info "Using CaptureChangePostgreSQL processor"
   else
@@ -200,7 +239,7 @@ main() {
       configure_with_retry "$CAPTURE_ID" "CDC Source" "$cfg"
     else
       # Minimal config for QueryDatabaseTable as CDC fallback
-      local cfg=$(jq -n --arg dbcp "$DBCP_ID" '{component:{config:{properties:{"Database Connection Pooling Service":$dbcp,"Database Type":"PostgreSQL","Table Name":"outbox","Maximum-value Columns":"id","Fetch Size":"100","Max Rows Per Flow File":"100"},schedulingPeriod:"30 sec",schedulingStrategy:"TIMER_DRIVEN",executionNode:"PRIMARY",penaltyDuration:"30 sec",yieldDuration:"1 sec",bulletinLevel:"WARN",runDurationMillis:0,concurrentlySchedulableTaskCount:1,autoTerminatedRelationships:[],comments:"Fallback incremental polling as CDC substitute"}}}' )
+      local cfg=$(cfg_poll_fallback "$DBCP_ID")
       configure_with_retry "$CAPTURE_ID" "CDC Source" "$cfg"
     fi
   else
@@ -222,6 +261,7 @@ main() {
 
   info "NiFi CDC Pattern Setup Complete!"
   warn "Next steps: Access NiFi UI, review 'PostgreSQL CDC Pattern' group, start processors, and link Route CDC Events to your downstream flow."
+  return 0
 }
 
 main
