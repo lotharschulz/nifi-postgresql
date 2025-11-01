@@ -839,7 +839,7 @@ main() {
     echo -e "${YELLOW}Creating processors...${NC}"
     
     # 1. QueryDatabaseTable - Poll outbox table
-    QUERY_DB_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.QueryDatabaseTable" "Poll Outbox Table" 100 100)
+    QUERY_DB_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.QueryDatabaseTable" "Poll Outbox Table" 1200 100)
     if [ -z "$QUERY_DB_ID" ] || [ "$QUERY_DB_ID" = "null" ]; then
         echo -e "${RED}Skipping configuration of QueryDatabaseTable due to creation failure${NC}" >&2
     else
@@ -850,7 +850,7 @@ main() {
     
     # 2. ConvertAvroToJSON - Convert Avro to JSON
     # Using ConvertRecord instead of deprecated/absent ConvertAvroToJSON
-    AVRO_TO_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.ConvertRecord" "Convert to JSON" 400 100)
+    AVRO_TO_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.ConvertRecord" "Convert to JSON" 1200 300)
     if [ -z "$AVRO_TO_JSON_ID" ] || [ "$AVRO_TO_JSON_ID" = "null" ]; then
         echo -e "${RED}Skipping configuration of ConvertAvroToJSON due to creation failure${NC}" >&2
     else
@@ -861,7 +861,7 @@ main() {
     fi
     
     # 3. SplitJson - Split JSON array into individual events
-    SPLIT_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.SplitJson" "Split Events" 700 100)
+    SPLIT_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.SplitJson" "Split Events" 1200 600)
     if [ -z "$SPLIT_JSON_ID" ] || [ "$SPLIT_JSON_ID" = "null" ]; then
         echo -e "${RED}Skipping configuration of SplitJson due to creation failure${NC}" >&2
     else
@@ -871,7 +871,7 @@ main() {
     fi
     
     # 4. EvaluateJsonPath - Extract event attributes
-    EVAL_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.EvaluateJsonPath" "Extract Event Metadata" 1000 100)
+    EVAL_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.EvaluateJsonPath" "Extract Event Metadata" 1200 900)
     if [ -z "$EVAL_JSON_ID" ] || [ "$EVAL_JSON_ID" = "null" ]; then
         echo -e "${RED}Skipping configuration of EvaluateJsonPath due to creation failure${NC}" >&2
     else
@@ -881,7 +881,7 @@ main() {
     fi
     
     # 5. LogAttribute - Log events (replace with actual publisher)
-    LOG_ATTR_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.LogAttribute" "Publish Events (Log)" 1300 100)
+    LOG_ATTR_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.LogAttribute" "Publish Events (Log)" 1800 1200)
     if [ -z "$LOG_ATTR_ID" ] || [ "$LOG_ATTR_ID" = "null" ]; then
         echo -e "${RED}Skipping configuration of LogAttribute due to creation failure${NC}" >&2
     else
@@ -891,7 +891,7 @@ main() {
     fi
     
     # 6. UpdateAttribute - Prepare for cleanup
-    UPDATE_ATTR_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.attributes.UpdateAttribute" "Prepare Cleanup SQL" 1000 300)
+    UPDATE_ATTR_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.attributes.UpdateAttribute" "Prepare Cleanup SQL" 1200 1200)
     if [ -z "$UPDATE_ATTR_ID" ] || [ "$UPDATE_ATTR_ID" = "null" ]; then
         echo -e "${RED}Skipping configuration of UpdateAttribute due to creation failure${NC}" >&2
     else
@@ -901,7 +901,7 @@ main() {
     fi
     
     # 7. PutSQL - Delete processed events
-    PUT_SQL_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.PutSQL" "Delete from Outbox" 1300 300)
+    PUT_SQL_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.PutSQL" "Delete from Outbox" 1200 1500)
     if [ -z "$PUT_SQL_ID" ] || [ "$PUT_SQL_ID" = "null" ]; then
         echo -e "${RED}Skipping configuration of PutSQL due to creation failure${NC}" >&2
     else
