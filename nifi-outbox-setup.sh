@@ -1,12 +1,29 @@
+# Function to configure ConvertRecord (placeholder without readers/writers yet)
+configure_convert_record_processor() {
+    local processor_id=$1
+    local config
+    if command -v jq >/dev/null 2>&1; then
+        config=$(jq -n '{component:{config:{schedulingPeriod:"30 sec",schedulingStrategy:"TIMER_DRIVEN",properties:{}}}}')
+    else
+        config='{"component":{"config":{"schedulingPeriod":"30 sec","schedulingStrategy":"TIMER_DRIVEN","properties":{}}}}'
+    fi
+    configure_processor_with_retry "$processor_id" "$config" "ConvertRecord"
+}
 #!/bin/bash
 set -euo pipefail
 IFS=$'\n\t'
 
 # Setup script for Apache NiFi Outbox Pattern with PostgreSQL
 # This script configures NiFi flow using REST API with token-based authentication
-# debugging:
-#  ./nifi-outbox-setup.sh [--dry-run|-n] || echo "Failed with exit code $?"
 
+# debugging:
+# 1)
+#  ./nifi-outbox-setup.sh [--dry-run|-n] || echo "Failed with exit code $?"
+# 2)
+#  export DEBUG=1
+#  ./nifi-outbox-setup.sh
+#  unset DEBUG
+#  ./nifi-outbox-setup.sh
 
 # Dry run flag (no changes applied to NiFi when enabled)
 # A --dry-run / -n flag is now supported
@@ -116,7 +133,7 @@ log_error_response() {
 is_revision_conflict() {
     local http_code=$1
     local body=$2
-    # NiFi may return 400 or 409 with conflict text
+    # NiFi optimistic locking: 409 or 400 with specific message
     if echo "$body" | grep -qi "not the most up-to-date revision"; then
         return 0
     fi
@@ -245,12 +262,12 @@ create_process_group() {
 create_dbcp_service() {
     local pg_id=$1
     
-    echo -e "${YELLOW}Creating Database Connection Pool...${NC}"
+    echo -e "${YELLOW}Creating Database Connection Pool...${NC}" >&2
     
     local dbcp_id
     if [ "$DRY_RUN" = "1" ]; then
         dbcp_id="dry-dbcp-${pg_id}"
-        echo -e "${BLUE}[DRY RUN] Would create DBCP controller service in PG ${pg_id}. -> ${dbcp_id}${NC}"
+    echo -e "${BLUE}[DRY RUN] Would create DBCP controller service in PG ${pg_id}. -> ${dbcp_id}${NC}" >&2
     else
         dbcp_id=$(curl -sk -X POST "${NIFI_URL}/nifi-api/process-groups/${pg_id}/controller-services" \
             -H "Authorization: Bearer ${TOKEN}" \
@@ -282,7 +299,7 @@ create_dbcp_service() {
     if [ "$DRY_RUN" = "1" ]; then
         echo -e "${BLUE}[DRY RUN] Would enable controller service ${dbcp_id}.${NC}"
     else
-        echo -e "${YELLOW}Enabling Database Connection Pool...${NC}"
+    echo -e "${YELLOW}Enabling Database Connection Pool...${NC}" >&2
         local response=$(curl -sk -X PUT "${NIFI_URL}/nifi-api/controller-services/${dbcp_id}" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "Content-Type: application/json" \
@@ -295,13 +312,14 @@ create_dbcp_service() {
             }" -w " HTTPSTATUS:%{http_code}")
         local http_code=${response##*HTTPSTATUS:}
         if [ "$http_code" != "200" ]; then
-            echo -e "${YELLOW}Note: Controller service will be enabled after configuration${NC}"
+            echo -e "${YELLOW}Note: Controller service will be enabled after configuration${NC}" >&2
         else
-            echo -e "${GREEN}Database Connection Pool enabled${NC}"
+            echo -e "${GREEN}Database Connection Pool enabled${NC}" >&2
         fi
     fi
     
-    echo $dbcp_id
+    # Output ONLY the id on stdout so callers capture a clean value
+    echo "$dbcp_id"
 }
 
 # Function to create a processor
@@ -319,18 +337,39 @@ create_processor() {
         return 0
     fi
 
+        local payload
+        payload=$(cat <<EOF
+{
+    "revision": {"version": 0},
+    "component": {
+        "type": "${type}",
+        "name": "${name}",
+        "position": {"x": ${x}, "y": ${y}}
+    }
+}
+EOF
+)
+    if [ -n "${DEBUG:-}" ]; then
+        echo -e "${BLUE}[DEBUG] Creating processor with payload:${NC}\n${payload}" >&2
+    fi
     local response=$(curl -sk -X POST "${NIFI_URL}/nifi-api/process-groups/${pg_id}/processors" \
         -H "Authorization: Bearer ${TOKEN}" \
         -H "Content-Type: application/json" \
-        -d "{
-            \"revision\": {\"version\": 0},
-            \"component\": {
-                \"type\": \"${type}\",
-                \"name\": \"${name}\",
-                \"position\": {\"x\": ${x}, \"y\": ${y}}
-            }
-        }")
-    echo "$response" | jq -r '.id'
+        -d "${payload}" -w " HTTPSTATUS:%{http_code}")
+    local http_code=${response##*HTTPSTATUS:}
+    local body=${response% HTTPSTATUS:*}
+    if [ "$http_code" != "201" ] && [ "$http_code" != "200" ]; then
+        echo -e "${RED}Failed to create processor '${name}' (HTTP ${http_code})${NC}" >&2
+        if command -v jq >/dev/null 2>&1; then
+            echo "$body" | jq . 2>/dev/null || echo "$body" >&2
+        else
+            echo "$body" >&2
+        fi
+        return 1
+    fi
+    echo "$body" | jq -r '.id'
+
+    # close function
 }
 
 # Function to configure processor with retry logic
@@ -349,20 +388,65 @@ configure_processor_with_retry() {
     fi
 
     while [ $attempt -le $max_attempts ]; do
+        # Always fetch latest processor state before attempting PUT to get current revision
         local proc_state=$(curl -sk -X GET "${NIFI_URL}/nifi-api/processors/${processor_id}" \
             -H "Authorization: Bearer ${TOKEN}")
         local rev_version=$(echo "$proc_state" | jq -r '.revision.version')
         local rev_client_id=$(echo "$proc_state" | jq -r '.revision.clientId // empty')
 
-        # Build JSON payload safely
+        if [ -n "${DEBUG:-}" ] && [ $attempt -eq 1 ]; then
+            echo -e "${BLUE}[DEBUG] Current processor state (raw):${NC}" >&2
+            if command -v jq >/dev/null 2>&1; then
+                echo "$proc_state" | jq . >&2
+            else
+                echo "$proc_state" >&2
+            fi
+        fi
+
+        if [ -z "$rev_version" ] || [ "$rev_version" = "null" ]; then
+            echo -e "${RED}Could not obtain revision for ${processor_name} (processor id ${processor_id}).${NC}"
+            break
+        fi
+
+        # Build revision block
+        local revision_block
         if [ -n "$rev_client_id" ]; then
             revision_block="{\"version\": ${rev_version}, \"clientId\": \"${rev_client_id}\"}"
         else
             revision_block="{\"version\": ${rev_version}}"
         fi
 
+        # Extract config part safely
         local config_block=$(echo "$config_json" | jq -r '.component.config')
-        local full_config="{\n  \"revision\": ${revision_block},\n  \"component\": {\n    \"id\": \"${processor_id}\",\n    \"config\": ${config_block}\n  }\n}"
+        if [ -z "$config_block" ] || [ "$config_block" = "null" ]; then
+            echo -e "${RED}Invalid config JSON for ${processor_name}; missing component.config${NC}"
+            break
+        fi
+        # Build full config JSON using jq to avoid escaped newlines that break NiFi parser
+        if command -v jq >/dev/null 2>&1; then
+            # Parse revision_block and config_block into jq and construct final payload
+            if [ -n "$rev_client_id" ]; then
+                full_config=$(jq -n \
+                    --arg id "$processor_id" \
+                    --argjson config "$(echo "$config_json" | jq '.component.config')" \
+                    --argjson rev "$(jq -n --arg ver "$rev_version" --arg cid "$rev_client_id" '{version: ($ver|tonumber), clientId: $cid}')" \
+                    '{revision: $rev, component: {id: $id, config: $config}}')
+            else
+                full_config=$(jq -n \
+                    --arg id "$processor_id" \
+                    --argjson config "$(echo "$config_json" | jq '.component.config')" \
+                    --argjson rev "$(jq -n --arg ver "$rev_version" '{version: ($ver|tonumber)}')" \
+                    '{revision: $rev, component: {id: $id, config: $config}}')
+            fi
+        else
+            # Fallback: compose without escaped newlines (best effort)
+            full_config="{\n  \"revision\": ${revision_block},\n  \"component\": {\n    \"id\": \"${processor_id}\",\n    \"config\": ${config_block}\n  }\n}"
+        fi
+
+        # Optional debug output of the full PUT payload
+        if [ -n "${DEBUG:-}" ]; then
+            echo -e "${BLUE}[DEBUG] Full config for ${processor_name}:${NC}\n${full_config}" >&2
+        fi
 
         local response=$(curl -sk -X PUT "${NIFI_URL}/nifi-api/processors/${processor_id}" \
             -H "Authorization: Bearer ${TOKEN}" \
@@ -380,14 +464,15 @@ configure_processor_with_retry() {
         fi
 
         if is_revision_conflict "$http_code" "$body"; then
-            echo -e "${YELLOW}Revision conflict while configuring ${processor_name}; retrying (attempt $attempt/${max_attempts})...${NC}"
+            echo -e "${YELLOW}Revision conflict while configuring ${processor_name}; refetching revision and retrying (attempt ${attempt}/${max_attempts})...${NC}"
+            attempt=$((attempt + 1))
             sleep 1
-        else
-            echo -e "${RED}Failed configuring ${processor_name} (HTTP $http_code) - not a revision conflict. Aborting retries.${NC}"
-            log_error_response "$http_code" "$body"
-            break
+            continue
         fi
-        attempt=$((attempt + 1))
+
+        echo -e "${RED}Failed configuring ${processor_name} (HTTP ${http_code}) - not a revision conflict. No further retries.${NC}"
+        log_error_response "$http_code" "$body"
+        break
     done
 
     if [ "$success" != true ]; then
@@ -400,64 +485,76 @@ configure_processor_with_retry() {
 configure_query_db_processor() {
     local processor_id=$1
     local dbcp_id=$2
-    
-    local config="{
-        \"component\": {
-            \"config\": {
-                \"properties\": {
-                    \"Database Connection Pooling Service\": \"${dbcp_id}\",
-                    \"Database Type\": \"PostgreSQL\",
-                    \"Table Name\": \"outbox\",
-                    \"Columns to Return\": \"id,aggregate_type,aggregate_id,event_type,payload,created_at\",
-                    \"Maximum-value Columns\": \"id\",
-                    \"Max Rows Per Flow File\": \"100\",
-                    \"Fetch Size\": \"100\",
-                    \"Use Avro Logical Types\": \"false\",
-                    \"Default Decimal Precision\": \"10\",
-                    \"Default Decimal Scale\": \"0\",
-                    \"Default Text Column Width\": \"4000\"
-                },
-                \"schedulingPeriod\": \"30 sec\",
-                \"schedulingStrategy\": \"TIMER_DRIVEN\",
-                \"executionNode\": \"PRIMARY\",
-                \"penaltyDuration\": \"30 sec\",
-                \"yieldDuration\": \"1 sec\",
-                \"bulletinLevel\": \"WARN\",
-                \"runDurationMillis\": 0,
-                \"concurrentlySchedulableTaskCount\": 1,
-                \"autoTerminatedRelationships\": [],
-                \"comments\": \"Polls the outbox table for new events using incremental ID\"
-            }
-        }
-    }"
-    
+            local config
+            if command -v jq >/dev/null 2>&1; then
+                    # Build JSON via jq (single definition)
+                    config=$(jq -n \
+                            --arg dbcp_id "$dbcp_id" \
+                            '{
+                                component: {
+                                    config: {
+                                        properties: {
+                                            "Database Connection Pooling Service": $dbcp_id,
+                                            "Database Type": "PostgreSQL",
+                                            "Table Name": "outbox",
+                                            "Columns to Return": "id,aggregate_type,aggregate_id,event_type,payload,created_at",
+                                            "Maximum-value Columns": "id",
+                                            "Max Rows Per Flow File": "100",
+                                            "Fetch Size": "100",
+                                            "Use Avro Logical Types": "false",
+                                            "Default Decimal Precision": "10",
+                                            "Default Decimal Scale": "0",
+                                            "Default Text Column Width": "4000"
+                                        },
+                                        schedulingPeriod: "30 sec",
+                                        schedulingStrategy: "TIMER_DRIVEN",
+                                        executionNode: "PRIMARY",
+                                        penaltyDuration: "30 sec",
+                                        yieldDuration: "1 sec",
+                                        bulletinLevel: "WARN",
+                                        runDurationMillis: 0,
+                                        concurrentlySchedulableTaskCount: 1,
+                                        autoTerminatedRelationships: [],
+                                        comments: "Polls the outbox table for new events using incremental ID"
+                                    }
+                                }
+                            }')
+            else
+                    # Fallback without jq
+                    config="{\n  \"component\": {\n    \"config\": {\n      \"properties\": {\n        \"Database Connection Pooling Service\": \"${dbcp_id}\",\n        \"Database Type\": \"PostgreSQL\",\n        \"Table Name\": \"outbox\",\n        \"Columns to Return\": \"id,aggregate_type,aggregate_id,event_type,payload,created_at\",\n        \"Maximum-value Columns\": \"id\",\n        \"Max Rows Per Flow File\": \"100\",\n        \"Fetch Size\": \"100\",\n        \"Use Avro Logical Types\": \"false\",\n        \"Default Decimal Precision\": \"10\",\n        \"Default Decimal Scale\": \"0\",\n        \"Default Text Column Width\": \"4000\"\n      },\n      \"schedulingPeriod\": \"30 sec\",\n      \"schedulingStrategy\": \"TIMER_DRIVEN\",\n      \"executionNode\": \"PRIMARY\",\n      \"penaltyDuration\": \"30 sec\",\n      \"yieldDuration\": \"1 sec\",\n      \"bulletinLevel\": \"WARN\",\n      \"runDurationMillis\": 0,\n      \"concurrentlySchedulableTaskCount\": 1,\n      \"autoTerminatedRelationships\": [],\n      \"comments\": \"Polls the outbox table for new events using incremental ID\"\n    }\n  }\n}"
+            fi
+
     configure_processor_with_retry "$processor_id" "$config" "QueryDatabaseTable"
 }
 
 # Function to configure ConvertAvroToJSON processor
 configure_avro_to_json_processor() {
     local processor_id=$1
-    
-    local config="{
-        \"component\": {
-            \"config\": {
-                \"properties\": {
-                    \"JSON container options\": \"array\",
-                    \"Wrap Single Record\": \"false\"
-                },
-                \"schedulingPeriod\": \"0 sec\",
-                \"schedulingStrategy\": \"TIMER_DRIVEN\",
-                \"executionNode\": \"ALL\",
-                \"penaltyDuration\": \"30 sec\",
-                \"yieldDuration\": \"1 sec\",
-                \"bulletinLevel\": \"WARN\",
-                \"runDurationMillis\": 0,
-                \"concurrentlySchedulableTaskCount\": 1,
-                \"autoTerminatedRelationships\": [\"failure\"],
-                \"comments\": \"Converts Avro records to JSON format\"
-            }
-        }
-    }"
+            local config
+            if command -v jq >/dev/null 2>&1; then
+                    config=$(jq -n '{
+                            component: {
+                                config: {
+                                    properties: {
+                                        "JSON container options": "array",
+                                        "Wrap Single Record": "false"
+                                    },
+                                    schedulingPeriod: "0 sec",
+                                    schedulingStrategy: "TIMER_DRIVEN",
+                                    executionNode: "ALL",
+                                    penaltyDuration: "30 sec",
+                                    yieldDuration: "1 sec",
+                                    bulletinLevel: "WARN",
+                                    runDurationMillis: 0,
+                                    concurrentlySchedulableTaskCount: 1,
+                                    autoTerminatedRelationships: ["failure"],
+                                    comments: "Converts Avro records to JSON format"
+                                }
+                            }
+                        }')
+            else
+                    config="{\n  \"component\": {\n    \"config\": {\n      \"properties\": {\n        \"JSON container options\": \"array\",\n        \"Wrap Single Record\": \"false\"\n      },\n      \"schedulingPeriod\": \"0 sec\",\n      \"schedulingStrategy\": \"TIMER_DRIVEN\",\n      \"executionNode\": \"ALL\",\n      \"penaltyDuration\": \"30 sec\",\n      \"yieldDuration\": \"1 sec\",\n      \"bulletinLevel\": \"WARN\",\n      \"runDurationMillis\": 0,\n      \"concurrentlySchedulableTaskCount\": 1,\n      \"autoTerminatedRelationships\": [\"failure\"],\n      \"comments\": \"Converts Avro records to JSON format\"\n    }\n  }\n}"
+            fi
     
     configure_processor_with_retry "$processor_id" "$config" "ConvertAvroToJSON"
 }
@@ -742,38 +839,82 @@ main() {
     
     # 1. QueryDatabaseTable - Poll outbox table
     QUERY_DB_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.QueryDatabaseTable" "Poll Outbox Table" 100 100)
-    configure_query_db_processor "${QUERY_DB_ID}" "${DBCP_ID}"
-    echo -e "${GREEN}Created QueryDatabaseTable processor${NC}"
+    if [ -z "$QUERY_DB_ID" ] || [ "$QUERY_DB_ID" = "null" ]; then
+        echo -e "${RED}Skipping configuration of QueryDatabaseTable due to creation failure${NC}" >&2
+    else
+        echo -e "${YELLOW}Processor ${QUERY_DB_ID} created, waiting for DBCP to be ready...${NC}"
+        sleep 5
+        configure_query_db_processor "${QUERY_DB_ID}" "${DBCP_ID}"
+        echo -e "${GREEN}Configured QueryDatabaseTable processor${NC}"
+    fi
     
     # 2. ConvertAvroToJSON - Convert Avro to JSON
-    AVRO_TO_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.kite.ConvertAvroToJSON" "Convert to JSON" 400 100)
-    configure_avro_to_json_processor "${AVRO_TO_JSON_ID}"
-    echo -e "${GREEN}Created ConvertAvroToJSON processor${NC}"
+    # Using ConvertRecord instead of deprecated/absent ConvertAvroToJSON
+    AVRO_TO_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.ConvertRecord" "Convert to JSON" 400 100)
+    if [ -z "$AVRO_TO_JSON_ID" ] || [ "$AVRO_TO_JSON_ID" = "null" ]; then
+        echo -e "${RED}Skipping configuration of ConvertAvroToJSON due to creation failure${NC}" >&2
+    else
+        echo -e "${YELLOW}Processor ${AVRO_TO_JSON_ID} created, waiting...${NC}"
+        sleep 5
+    # Using ConvertRecord instead of deprecated/absent ConvertAvroToJSON
+        configure_convert_record_processor "${AVRO_TO_JSON_ID}"
+        echo -e "${GREEN}Configured ConvertRecord processor (JSON passthrough)${NC}"
+    fi
     
     # 3. SplitJson - Split JSON array into individual events
     SPLIT_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.SplitJson" "Split Events" 700 100)
-    configure_split_json_processor "${SPLIT_JSON_ID}"
-    echo -e "${GREEN}Created SplitJson processor${NC}"
+    if [ -z "$SPLIT_JSON_ID" ] || [ "$SPLIT_JSON_ID" = "null" ]; then
+        echo -e "${RED}Skipping configuration of SplitJson due to creation failure${NC}" >&2
+    else
+        echo -e "${YELLOW}Processor ${SPLIT_JSON_ID} created, waiting...${NC}"
+        sleep 5
+        configure_split_json_processor "${SPLIT_JSON_ID}"
+        echo -e "${GREEN}Configured SplitJson processor${NC}"
+    fi
     
     # 4. EvaluateJsonPath - Extract event attributes
     EVAL_JSON_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.EvaluateJsonPath" "Extract Event Metadata" 1000 100)
-    configure_evaluate_json_processor "${EVAL_JSON_ID}"
-    echo -e "${GREEN}Created EvaluateJsonPath processor${NC}"
+    if [ -z "$EVAL_JSON_ID" ] || [ "$EVAL_JSON_ID" = "null" ]; then
+        echo -e "${RED}Skipping configuration of EvaluateJsonPath due to creation failure${NC}" >&2
+    else
+        echo -e "${YELLOW}Processor ${EVAL_JSON_ID} created, waiting...${NC}"
+        sleep 5
+        configure_evaluate_json_processor "${EVAL_JSON_ID}"
+        echo -e "${GREEN}Configured EvaluateJsonPath processor${NC}"
+    fi
     
     # 5. LogAttribute - Log events (replace with actual publisher)
     LOG_ATTR_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.LogAttribute" "Publish Events (Log)" 1300 100)
-    configure_publish_processor "${LOG_ATTR_ID}"
-    echo -e "${GREEN}Created LogAttribute processor (placeholder for publisher)${NC}"
+    if [ -z "$LOG_ATTR_ID" ] || [ "$LOG_ATTR_ID" = "null" ]; then
+        echo -e "${RED}Skipping configuration of LogAttribute due to creation failure${NC}" >&2
+    else
+        echo -e "${YELLOW}Processor ${LOG_ATTR_ID} created, waiting...${NC}"
+        sleep 5
+        configure_publish_processor "${LOG_ATTR_ID}"
+        echo -e "${GREEN}Configured LogAttribute processor (placeholder for publisher)${NC}"
+    fi
     
     # 6. UpdateAttribute - Prepare for cleanup
     UPDATE_ATTR_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.attributes.UpdateAttribute" "Prepare Cleanup SQL" 1000 300)
-    configure_update_attribute_processor "${UPDATE_ATTR_ID}"
-    echo -e "${GREEN}Created UpdateAttribute processor${NC}"
+    if [ -z "$UPDATE_ATTR_ID" ] || [ "$UPDATE_ATTR_ID" = "null" ]; then
+        echo -e "${RED}Skipping configuration of UpdateAttribute due to creation failure${NC}" >&2
+    else
+        echo -e "${YELLOW}Processor ${UPDATE_ATTR_ID} created, waiting...${NC}"
+        sleep 5
+        configure_update_attribute_processor "${UPDATE_ATTR_ID}"
+        echo -e "${GREEN}Configured UpdateAttribute processor${NC}"
+    fi
     
     # 7. PutSQL - Delete processed events
     PUT_SQL_ID=$(create_processor "${PG_ID}" "org.apache.nifi.processors.standard.PutSQL" "Delete from Outbox" 1300 300)
-    configure_cleanup_processor "${PUT_SQL_ID}" "${DBCP_ID}"
-    echo -e "${GREEN}Created PutSQL processor${NC}"
+    if [ -z "$PUT_SQL_ID" ] || [ "$PUT_SQL_ID" = "null" ]; then
+        echo -e "${RED}Skipping configuration of PutSQL due to creation failure${NC}" >&2
+    else
+        echo -e "${YELLOW}Processor ${PUT_SQL_ID} created, waiting...${NC}"
+        sleep 5
+        configure_cleanup_processor "${PUT_SQL_ID}" "${DBCP_ID}"
+        echo -e "${GREEN}Configured PutSQL processor${NC}"
+    fi
     
     # Create connections
     echo -e "${YELLOW}Creating connections between processors...${NC}"
