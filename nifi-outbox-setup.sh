@@ -779,7 +779,7 @@ main() {
         # Get root process group ID
         get_root_pg_id
 
-        # Idempotent: see if PG already exists
+        # Idempotent: see if progress group already exists
         echo -e "${YELLOW}Looking for existing 'PostgreSQL Outbox Pattern' process group...${NC}"
         PG_ID=$(curl -sk -X GET "${NIFI_URL}/nifi-api/flow/process-groups/root" -H "Authorization: Bearer ${TOKEN}" | jq -r '.processGroupFlow.flow.processGroups[]? | select(.component.name=="PostgreSQL Outbox Pattern") | .component.id' | head -1)
         if [ -n "$PG_ID" ]; then
