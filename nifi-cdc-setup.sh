@@ -357,8 +357,8 @@ main() {
     assign_param_ctx "${PG_ID}" "${PARAM_CTX_ID}"
 
     # Create DBCP (CDC specific name, independent of outbox DBCP)
-    # DBCP_ID=$(create_dbcp_service "${PG_ID}")
-    # echo -e "${GREEN}DBCP Service (CDC) ID: ${DBCP_ID}${NC}"
+    DBCP_ID=$(create_dbcp_service "${PG_ID}")
+    echo -e "${GREEN}DBCP Service (CDC) ID: ${DBCP_ID}${NC}"
 
     # # Processors
     # # Capture Change (if available else fallback to QueryDatabaseTable incremental pattern)
