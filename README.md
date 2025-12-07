@@ -26,11 +26,11 @@ _Please note_ the browser warning and accept the self-signed certificate.
 Login with user name and password provided defined in your .env file.
 
 
-### Stop
+### Tear down
 
 ```sh
 # Data is preserved in Docker volumes. To remove volumes as well (irreversible), run:
-docker-compose stop -v 
+docker-compose down -v 
 ```
 
 ### Restart from scratch
