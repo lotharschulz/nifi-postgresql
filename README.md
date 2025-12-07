@@ -29,5 +29,12 @@ Login with user name and password provided defined in your .env file.
 ### Stop
 
 ```sh
-docker-compose stop
+# Data is preserved in Docker volumes. To remove volumes as well (irreversible), run:
+docker-compose stop -v 
+```
+
+### Restart from scratch
+
+```sh
+docker-compose down -v && sleep 2 && docker-compose up -d
 ```
