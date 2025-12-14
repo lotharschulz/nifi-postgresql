@@ -1,40 +1,115 @@
-# Apache Nifi & Postgresql
+# Apache NiFi CDC & Outbox Pattern Testing Guide
 
-TODO: add more details
+This guide walks you through testing both the CDC (Change Data Capture) and Outbox patterns with PostgreSQL and Apache NiFi.
 
-### Start
+## Prerequisites
+
+- Docker and Docker Compose installed
+- `jq` installed (for JSON processing in scripts)
+- `.env` file configured (copy from `env-tmplt` if needed)
+
+## Start the environment
 
 ```sh
 docker-compose up -d
 ```
 
-### Status check
-
-verify environment variables are loaded
-```bash
-docker-compose config
+## Wait for NiFi to be ready
+```sh
+sleep 120
 ```
 
-Wait for services to start (NiFi takes some time to start) and check nifi status
-```bash
+### Status check
+
+check nifi status
+```sh
 docker-compose logs -f nifi
 ```
 
-Once you see `NiFi has started`, NiFi should be available at [https://localhost:8443/nifi](https://localhost:8443/nifi).
+once you see `NiFi has started`, NiFi should be available at [https://localhost:8443/nifi](https://localhost:8443/nifi).
 _Please note_ the browser warning and accept the self-signed certificate.
 
 Login with user name and password provided defined in your .env file.
 
 
-### Tear down
+verify environment variables are loaded
+```sh
+docker-compose config
+```
+
+
+make scripts executable in not done already
+```sh
+chmod +x nifi-cdc-setup.sh nifi-outbox-setup.sh test-cdc.sh test-outbox.sh nifi-diagnose.sh
+```
+
+## CDC
+
+### Run CDC setup script
+```sh
+./nifi-cdc-setup.sh
+```
+
+### Create replication slot (if not exists):
+```sh
+./test-cdc.sh --setup
+```
+
+### Start the flow in NiFi UI
+
+todo: add screenshot
+
+### Generate test data
+```sh
+./test-cdc.sh
+```
+
+### Check success
+
+Todo
+
+
+## Outbox
+
+
+### Run Outbox setup script
+```sh
+./nifi-outbox-setup.sh
+```
+
+### Start the flow in NiFi UI
+
+### Generate test data:
+```sh
+./test-outbox.sh
+```
+
+### Wait a moment for processing, then check
+```sh
+sleep 15
+docker exec postgres_cdc psql -U demo_user -d demo_db -c "SELECT COUNT(*) FROM outbox;"
+```
+
+### Check success
+
+```sql
+ count 
+-------
+     0
+(1 row)
+```
+
+
+
+## Tear down
 
 ```sh
 # Data is preserved in Docker volumes. To remove volumes as well (irreversible), run:
 docker-compose down -v 
 ```
 
-### Restart from scratch
+### restart from scratch
 
 ```sh
-docker-compose down -v && sleep 2 && docker-compose up -d
+docker-compose down -v && sleep 1 && docker-compose up -d
 ```
