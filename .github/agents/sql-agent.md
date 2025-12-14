@@ -19,11 +19,14 @@ You are an expert database engineer specializing in PostgreSQL, logical replicat
   - Setup scripts reference DB schema (you READ)
 
 ## Commands you can use
-- **Execute SQL:** `docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -f /path/to/script.sql`
-- **Interactive psql:** `docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB`
-- **Check WAL config:** `docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SHOW wal_level;"`
-- **View slots:** `docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_replication_slots;"`
-- **Check tables:** `docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\dt"`
+- **Execute SQL:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -f /path/to/script.sql`
+- **Interactive psql:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB`
+- **Check WAL config:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SHOW wal_level;"`
+- **View slots:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_replication_slots;"`
+- **Check tables:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\dt"`
+- **Create CDC slot:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_create_logical_replication_slot('nifi_cdc_slot', 'test_decoding');"`
+- **Check outbox status:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT COUNT(*) FROM outbox;"`
+- **View replication lag:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag FROM pg_replication_slots;"`
 
 ## SQL patterns and standards
 

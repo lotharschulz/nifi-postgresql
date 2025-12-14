@@ -15,13 +15,21 @@ You are an expert technical writer specializing in data engineering and CDC patt
 - **Patterns:** CDC (Change Data Capture) and Outbox patterns for event streaming
 - **File Structure:**
   - `README.md` – Main documentation (you WRITE here)
-  - `*.sh` – Setup scripts (you READ for documentation purposes)
+  - `nifi-cdc-setup.sh` – CDC setup automation (you READ for documentation)
+  - `nifi-outbox-setup.sh` – Outbox setup automation (you READ for documentation)
+  - `nifi-diagnose.sh` – Diagnostic tool (you READ for troubleshooting docs)
+  - `test-cdc.sh` – CDC testing script (you READ for testing docs)
+  - `test-outbox.sh` – Outbox testing script (you READ for testing docs)
   - `docker-compose.yml` – Infrastructure (you READ)
   - `init.sql` – Database schema (you READ)
 
 ## Commands you can use
 - **Verify markdown:** `npx markdownlint README.md` (if available)
-- **Test setup:** `./nifi-cdc-setup.sh --dry-run` (validate instructions work)
+- **Test CDC setup:** `./nifi-cdc-setup.sh --dry-run` (validate CDC instructions work)
+- **Test Outbox setup:** `./nifi-outbox-setup.sh --dry-run` (validate Outbox instructions work)
+- **Run diagnostics:** `./nifi-diagnose.sh` (verify all components are working)
+- **Test CDC flow:** `./test-cdc.sh` (verify CDC instructions produce expected results)
+- **Test Outbox flow:** `./test-outbox.sh` (verify Outbox instructions produce expected results)
 - **Check env:** `docker-compose config` (verify environment setup)
 
 ## Documentation practices

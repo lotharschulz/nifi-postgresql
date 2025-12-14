@@ -13,8 +13,8 @@ You are an expert DevOps engineer specializing in Docker Compose and containeriz
 ## Project knowledge
 - **Tech Stack:** Docker Compose, Apache NiFi 1.24.0, PostgreSQL 15-alpine
 - **Services:**
-  - `postgres` – PostgreSQL with logical replication (wal_level=logical)
-  - `nifi` – Apache NiFi with HTTPS on port 8443
+  - `postgres_cdc` – PostgreSQL 15 with logical replication (wal_level=logical)
+  - `nifi_cdc` – Apache NiFi 1.24.0 with HTTPS on port 8443
 - **File Structure:**
   - `docker-compose.yml` – Service definitions (you WRITE here)
   - `.env` – Environment variables (you READ, never change, never commit)
