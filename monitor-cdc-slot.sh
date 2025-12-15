@@ -5,8 +5,6 @@ set -euo pipefail
 # Monitors PostgreSQL replication slots for WAL growth and lag
 # Based on best practices from: https://www.lotharschulz.info/2025/10/15/postgresql-cdc-best-practices-managing-wal-growth-and-replication-slots/
 
-source .env
-
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -17,34 +15,46 @@ NC='\033[0m'
 # Parse arguments
 CONTINUOUS=0
 INTERVAL=10
+SHOW_HELP=0
 for arg in "$@"; do
     case "$arg" in
         --continuous|-c) CONTINUOUS=1 ;;
         --interval=*) INTERVAL="${arg#*=}" ;;
-        --help|-h)
-            echo "Usage: $0 [options]"
-            echo ""
-            echo "CDC Slot Monitoring Tool - Monitor PostgreSQL replication slots for WAL growth"
-            echo ""
-            echo "Options:"
-            echo "  --continuous, -c     Run continuously (default: run once)"
-            echo "  --interval=SECONDS   Interval between checks in continuous mode (default: 10)"
-            echo "  --help, -h           Show this help"
-            echo ""
-            echo "Best Practices:"
-            echo "  1. Monitor slot lag and activity regularly"
-            echo "  2. Inactive slots can cause WAL accumulation"
-            echo "  3. Set max_slot_wal_keep_size to prevent unlimited growth"
-            echo "  4. Remove unused replication slots promptly"
-            echo ""
-            echo "Examples:"
-            echo "  $0                      # Run once"
-            echo "  $0 --continuous         # Run continuously with 10s interval"
-            echo "  $0 -c --interval=30     # Run continuously with 30s interval"
-            exit 0
-            ;;
+        --help|-h) SHOW_HELP=1 ;;
     esac
 done
+
+# Show help and exit if requested
+if [ "$SHOW_HELP" = "1" ]; then
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "CDC Slot Monitoring Tool - Monitor PostgreSQL replication slots for WAL growth"
+    echo ""
+    echo "Options:"
+    echo "  --continuous, -c     Run continuously (default: run once)"
+    echo "  --interval=SECONDS   Interval between checks in continuous mode (default: 10)"
+    echo "  --help, -h           Show this help"
+    echo ""
+    echo "Best Practices:"
+    echo "  1. Monitor slot lag and activity regularly"
+    echo "  2. Inactive slots can cause WAL accumulation"
+    echo "  3. Set max_slot_wal_keep_size to prevent unlimited growth"
+    echo "  4. Remove unused replication slots promptly"
+    echo ""
+    echo "Examples:"
+    echo "  $0                      # Run once"
+    echo "  $0 --continuous         # Run continuously with 10s interval"
+    echo "  $0 -c --interval=30     # Run continuously with 30s interval"
+    exit 0
+fi
+
+# Check if .env exists
+if [ ! -f .env ]; then
+    echo -e "${RED}Error: .env file not found. Please create it from .env.example${NC}"
+    exit 1
+fi
+
+source .env
 
 echo -e "${GREEN}╔═══════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║   PostgreSQL CDC Slot Monitoring Tool        ║${NC}"
