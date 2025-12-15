@@ -142,6 +142,43 @@ else
     echo -e "  Create with: ${CYAN}./test-cdc.sh --setup${NC}"
 fi
 
+# CDC Slot Monitoring - WAL Growth and Replication Slots
+echo -e "\n${BLUE}=== CDC Slot Monitoring (WAL & Slot Management) ===${NC}\n"
+echo -e "${YELLOW}Monitoring slot lag and activity...${NC}\n"
+
+# Check if any slots exist
+slot_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    "SELECT COUNT(*) FROM pg_replication_slots;")
+
+if [ "$slot_count" -eq 0 ]; then
+    echo -e "${RED}✗ No replication slots found${NC}"
+    echo -e "  Create a slot with: ${CYAN}./test-cdc.sh --setup${NC}\n"
+else
+    # Monitor slot lag and activity
+    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+        "SELECT
+            slot_name,
+            active,
+            pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag_size,
+            pg_size_pretty(COALESCE(safe_wal_size, 0)) AS safe_wal_size,
+            restart_lsn,
+            confirmed_flush_lsn
+        FROM pg_replication_slots
+        ORDER BY slot_name;"
+    
+    # Check for inactive slots with large lag
+    inactive_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+        "SELECT COUNT(*) FROM pg_replication_slots WHERE NOT active;")
+    
+    if [ "$inactive_count" -gt 0 ]; then
+        echo -e "\n${RED}⚠ Warning: ${inactive_count} inactive replication slot(s) detected${NC}"
+        echo -e "${YELLOW}Inactive slots can cause WAL accumulation and disk space issues.${NC}"
+        echo -e "${YELLOW}Consider monitoring these slots or removing them if no longer needed.${NC}\n"
+    else
+        echo -e "\n${GREEN}✓ All replication slots are active${NC}\n"
+    fi
+fi
+
 echo -e "\n${GREEN}╔════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║          Diagnostic Complete           ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
