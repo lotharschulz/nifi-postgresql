@@ -1,5 +1,8 @@
 #!/bin/bash
 set -euo pipefail
+IFS=$'\n\t'
+
+source .env
 
 # CDC Slot Monitoring Script
 # Monitors PostgreSQL replication slots for WAL growth and lag
@@ -53,8 +56,6 @@ if [ ! -f .env ]; then
     echo -e "${RED}Error: .env file not found. Please create it from .env.example${NC}"
     exit 1
 fi
-
-source .env
 
 echo -e "${GREEN}╔═══════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║   PostgreSQL CDC Slot Monitoring Tool        ║${NC}"
