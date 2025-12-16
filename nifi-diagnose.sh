@@ -1,6 +1,9 @@
 #!/bin/bash
-# Diagnostic script for NiFi CDC/Outbox setup
 set -euo pipefail
+IFS=$'\n\t'
+
+# Diagnostic script for NiFi CDC/Outbox setup
+
 source .env
 
 NIFI_URL="https://${NIFI_HOST:-localhost}:${NIFI_PORT:-8443}"
