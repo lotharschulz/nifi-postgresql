@@ -174,9 +174,20 @@ else
         "SELECT COUNT(*) FROM pg_replication_slots WHERE NOT active;")
     
     if [ "$inactive_count" -gt 0 ]; then
-        echo -e "\n${RED}⚠ Warning: ${inactive_count} inactive replication slot(s) detected${NC}"
-        echo -e "${YELLOW}Inactive slots can cause WAL accumulation and disk space issues.${NC}"
-        echo -e "${YELLOW}Consider monitoring these slots or removing them if no longer needed.${NC}\n"
+        # Check if any inactive slots have large lag (>100 MB)
+        large_lag_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+            "SELECT COUNT(*) FROM pg_replication_slots 
+             WHERE NOT active 
+             AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > 104857600;" 2>/dev/null || echo "0")
+        
+        if [ "$large_lag_count" -gt 0 ]; then
+            echo -e "\n${RED}⚠ Warning: ${inactive_count} inactive slot(s) with large lag detected${NC}"
+            echo -e "${YELLOW}Inactive slots with large lag can cause WAL accumulation and disk space issues.${NC}"
+            echo -e "${YELLOW}Consider investigating why consumers are not active or removing unused slots.${NC}\n"
+        else
+            echo -e "\n${BLUE}ℹ Info: ${inactive_count} inactive slot(s) with low lag detected${NC}"
+            echo -e "${CYAN}This is normal for scheduled CDC consumers (e.g., NiFi). Low lag indicates regular consumption.${NC}\n"
+        fi
     else
         echo -e "\n${GREEN}✓ All replication slots are active${NC}\n"
     fi
