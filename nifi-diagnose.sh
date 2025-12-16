@@ -178,7 +178,7 @@ else
         large_lag_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
             "SELECT COUNT(*) FROM pg_replication_slots 
              WHERE NOT active 
-             AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > 104857600;" 2>/dev/null || echo "0")
+             AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > ${LAG_THRESHOLD_BYTES};" 2>/dev/null || echo "0")
         
         if [ "$large_lag_count" -gt 0 ]; then
             echo -e "\n${RED}⚠ Warning: ${inactive_count} inactive slot(s) with large lag detected${NC}"

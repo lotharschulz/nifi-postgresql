@@ -6,6 +6,9 @@ IFS=$'\n\t'
 # Monitors PostgreSQL replication slots for WAL growth and lag
 # Based on best practices from: https://www.lotharschulz.info/2025/10/15/postgresql-cdc-best-practices-managing-wal-growth-and-replication-slots/
 
+# Configuration
+LAG_THRESHOLD_BYTES=104857600  # 100 MB - threshold for warning about inactive slots
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -25,7 +28,7 @@ for arg in "$@"; do
     esac
 done
 
-# Show help and exit if requested (before sourcing .env)
+# Show help and exit if requested (before sourcing .env to allow --help when .env doesn't exist)
 if [ "$SHOW_HELP" = "1" ]; then
     echo "Usage: $0 [options]"
     echo ""
@@ -110,7 +113,7 @@ monitor_slots() {
         local large_lag_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
             "SELECT COUNT(*) FROM pg_replication_slots 
              WHERE NOT active 
-             AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > 104857600;" 2>/dev/null || echo "0")
+             AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > ${LAG_THRESHOLD_BYTES};" 2>/dev/null || echo "0")
         
         if [ "$large_lag_count" -gt 0 ]; then
             echo -e "\n${RED}⚠ Warning: Inactive slots with large lag (>100 MB) detected!${NC}"
