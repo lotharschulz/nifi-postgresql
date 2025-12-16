@@ -6,6 +6,9 @@ IFS=$'\n\t'
 
 source .env
 
+# Configuration
+LAG_THRESHOLD_BYTES=104857600  # 100 MB - threshold for warning about inactive slots
+
 NIFI_URL="https://${NIFI_HOST:-localhost}:${NIFI_PORT:-8443}"
 
 GREEN='\033[0;32m'
