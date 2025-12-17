@@ -40,7 +40,7 @@ docker-compose config
 
 make scripts executable in not done already
 ```sh
-chmod +x nifi-cdc-setup.sh nifi-outbox-setup.sh test-cdc.sh test-outbox.sh nifi-diagnose.sh
+chmod +x nifi-cdc-setup.sh nifi-outbox-setup.sh test-cdc.sh test-outbox.sh nifi-diagnose.sh monitor-cdc-slot.sh
 ```
 
 ## CDC
@@ -67,6 +67,35 @@ todo: add screenshot
 ### Check success
 
 Todo
+
+### CDC Slot Monitoring
+
+Monitor replication slots for WAL growth and lag to prevent disk space issues:
+
+```sh
+./monitor-cdc-slot.sh
+```
+
+Run continuously for real-time monitoring:
+```sh
+./monitor-cdc-slot.sh --continuous
+```
+
+The monitoring script implements best practices from [PostgreSQL CDC Best Practices: Managing WAL Growth and Replication Slots](https://www.lotharschulz.info/2025/10/15/postgresql-cdc-best-practices-managing-wal-growth-and-replication-slots/):
+
+1. **Monitor slot lag and activity** - Check for inactive slots that cause WAL accumulation
+2. **Set WAL size limits** - Configure `max_slot_wal_keep_size` to prevent unlimited growth
+3. **Remove unused slots** - Drop replication slots that are no longer needed
+
+Key metrics monitored:
+- Slot activity status (active/inactive)
+- WAL lag size (how far behind the slot is)
+- Safe WAL size (remaining safe space)
+- WAL configuration settings
+
+**Warning System:**
+- **Warning** (⚠️): Only shown when BOTH inactive AND lag_size > 500 MB (indicates a real problem)
+- **Debug** (🔍): Shown for inactive slots with detailed context explaining expected behavior for scheduled CDC consumers
 
 
 ## Outbox
@@ -99,6 +128,35 @@ docker exec postgres_cdc psql -U demo_user -d demo_db -c "SELECT COUNT(*) FROM o
 (1 row)
 ```
 
+## Diagnostics and Monitoring
+
+### Run diagnostic check
+
+Check the status of both CDC and Outbox patterns, including CDC slot monitoring:
+
+```sh
+./nifi-diagnose.sh
+```
+
+The diagnostic script will show:
+- Docker container status
+- NiFi connectivity and authentication
+- Process group and processor status
+- Controller service status
+- PostgreSQL database connectivity
+- Table information and row counts
+- Replication slot status and pending changes
+- **CDC Slot Monitoring** with WAL lag and slot activity metrics
+
+### Monitor CDC slots continuously
+
+For ongoing CDC slot monitoring:
+
+```sh
+./monitor-cdc-slot.sh --continuous
+```
+
+See the CDC Slot Monitoring section above for more details.
 
 
 ## Tear down

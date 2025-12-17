@@ -18,6 +18,7 @@ You are an expert technical writer specializing in data engineering and CDC patt
   - `nifi-cdc-setup.sh` – CDC setup automation (you READ for documentation)
   - `nifi-outbox-setup.sh` – Outbox setup automation (you READ for documentation)
   - `nifi-diagnose.sh` – Diagnostic tool (you READ for troubleshooting docs)
+  - `monitor-cdc-slot.sh` – CDC slot monitoring tool (you READ for monitoring docs)
   - `test-cdc.sh` – CDC testing script (you READ for testing docs)
   - `test-outbox.sh` – Outbox testing script (you READ for testing docs)
   - `docker-compose.yml` – Infrastructure (you READ)
@@ -30,6 +31,8 @@ You are an expert technical writer specializing in data engineering and CDC patt
 - **Run diagnostics:** `./nifi-diagnose.sh` (verify all components are working)
 - **Test CDC flow:** `./test-cdc.sh` (verify CDC instructions produce expected results)
 - **Test Outbox flow:** `./test-outbox.sh` (verify Outbox instructions produce expected results)
+- **Monitor CDC slots:** `./monitor-cdc-slot.sh` (check slot status and WAL lag)
+- **Continuous monitoring:** `./monitor-cdc-slot.sh --continuous` (monitor slots with 10s intervals)
 - **Check env:** `docker-compose config` (verify environment setup)
 
 ## Documentation practices

@@ -1,7 +1,13 @@
 #!/bin/bash
-# Diagnostic script for NiFi CDC/Outbox setup
 set -euo pipefail
+IFS=$'\n\t'
+
+# Diagnostic script for NiFi CDC/Outbox setup
+
 source .env
+
+# Configuration
+LAG_THRESHOLD_BYTES=524288000  # 500 MB - threshold for warning about inactive slots
 
 NIFI_URL="https://${NIFI_HOST:-localhost}:${NIFI_PORT:-8443}"
 
@@ -140,6 +146,58 @@ if [ -n "$slot" ]; then
 else
     echo -e "  ${RED}✗ nifi_cdc_slot not found${NC}"
     echo -e "  Create with: ${CYAN}./test-cdc.sh --setup${NC}"
+fi
+
+# CDC Slot Monitoring - WAL Growth and Replication Slots
+echo -e "\n${BLUE}=== CDC Slot Monitoring (WAL & Slot Management) ===${NC}\n"
+echo -e "${YELLOW}Monitoring slot lag and activity...${NC}\n"
+
+# Check if any slots exist
+slot_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    "SELECT COUNT(*) FROM pg_replication_slots;")
+
+if [ "$slot_count" -eq 0 ]; then
+    echo -e "${RED}✗ No replication slots found${NC}"
+    echo -e "  Create a slot with: ${CYAN}./test-cdc.sh --setup${NC}\n"
+else
+    # Monitor slot lag and activity
+    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+        "SELECT
+            slot_name,
+            active,
+            pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag_size,
+            pg_size_pretty(COALESCE(safe_wal_size, 0)) AS safe_wal_size,
+            restart_lsn,
+            confirmed_flush_lsn
+        FROM pg_replication_slots
+        ORDER BY slot_name;"
+    
+    # Check for inactive slots with large lag
+    inactive_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+        "SELECT COUNT(*) FROM pg_replication_slots WHERE NOT active;")
+    
+    if [ "$inactive_count" -gt 0 ]; then
+        # Check if any inactive slots have large lag (>100 MB)
+        large_lag_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+            "SELECT COUNT(*) FROM pg_replication_slots 
+             WHERE NOT active 
+             AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > ${LAG_THRESHOLD_BYTES};" 2>/dev/null || echo "0")
+        
+        if [ "$large_lag_count" -gt 0 ]; then
+            echo -e "\n${RED}⚠ Warning: ${inactive_count} inactive slot(s) with large lag (>500 MB) detected${NC}"
+            echo -e "${YELLOW}Inactive slots with large lag can cause WAL accumulation and disk space issues.${NC}"
+            echo -e "${YELLOW}Consider investigating why consumers are not active or removing unused slots.${NC}\n"
+        else
+            echo -e "\n${BLUE}🔍 Debug: ${inactive_count} inactive slot(s) with low lag detected${NC}"
+            echo -e "${CYAN}Context:${NC}"
+            echo -e "${CYAN}  - This is appearing because flows like './test-cdc.sh --continuous' use${NC}"
+            echo -e "${CYAN}    pg_logical_slot_get_changes() via ExecuteSQL on a schedule (e.g., every 10 seconds)${NC}"
+            echo -e "${CYAN}  - This doesn't maintain a persistent connection${NC}"
+            echo -e "${CYAN}  - Inactive slots with low lag are very likely being consumed periodically${NC}\n"
+        fi
+    else
+        echo -e "\n${GREEN}✓ All replication slots are active${NC}\n"
+    fi
 fi
 
 echo -e "\n${GREEN}╔════════════════════════════════════════╗${NC}"
