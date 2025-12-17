@@ -105,10 +105,10 @@ monitor_outbox() {
     echo -e "\n${YELLOW}Event Age Analysis:${NC}"
     local old_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT COUNT(*) FROM outbox 
-         WHERE EXTRACT(EPOCH FROM (NOW() - created_at)) > ${AGE_THRESHOLD_SECONDS};" 2>/dev/null || echo "0")
+         WHERE created_at < NOW() - INTERVAL '${AGE_THRESHOLD_SECONDS} seconds';" 2>/dev/null || echo "0")
     
     if [ "$old_count" -gt 0 ]; then
-        echo -e "${RED}⚠ Warning: ${old_count} events older than 5 minutes detected!${NC}"
+        echo -e "${RED}⚠ Warning: ${old_count} events older than $((AGE_THRESHOLD_SECONDS / 60)) minutes detected!${NC}"
         echo -e "${YELLOW}This may indicate that NiFi consumers are not processing events.${NC}"
         echo -e "${YELLOW}Action: Check NiFi flow status and processor state.${NC}\n"
         
@@ -126,7 +126,7 @@ monitor_outbox() {
             ORDER BY created_at ASC
             LIMIT 5;" 2>/dev/null
     else
-        echo -e "${GREEN}✓ No old events - all events are recent (< 5 minutes)${NC}"
+        echo -e "${GREEN}✓ No old events - all events are recent (< $((AGE_THRESHOLD_SECONDS / 60)) minutes)${NC}"
     fi
     
     # Show aggregate type distribution
