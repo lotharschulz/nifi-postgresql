@@ -125,9 +125,8 @@ Key metrics monitored:
 ./test-outbox.sh
 ```
 
-### Wait a moment for processing, then check
+### Check
 ```sh
-sleep 15
 docker exec postgres_cdc psql -U demo_user -d demo_db -c "SELECT COUNT(*) FROM outbox;"
 # result set should be greater than zero
 ```
