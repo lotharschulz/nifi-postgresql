@@ -60,27 +60,34 @@ chmod +x nifi-cdc-setup.sh nifi-outbox-setup.sh test-cdc.sh test-outbox.sh nifi-
 
 ### Start the flow in NiFi UI
 
-todo: add screenshot
+![Started CDC Flow in NiFi UI](CDC.png)
+
+### Create relication slots (if not existing)
+
+```sh
+./test-cdc.sh --setup
+```
 
 ### Generate test data
 ```sh
 ./test-cdc.sh
 ```
 
-### Check success
+### Test CDC
 
-Todo
+```sh
+./test-cdc.sh
+# run continuously to prepare real-time monitoring below
+./test-cdc.sh --continuous
+```
 
-### CDC Slot Monitoring
+### CDC Monitoring incl. Slot Monitoring
 
 Monitor replication slots for WAL growth and lag to prevent disk space issues:
 
 ```sh
 ./monitor-cdc-slot.sh
-```
-
-Run continuously for real-time monitoring:
-```sh
+# run continuously for real-time monitoring
 ./monitor-cdc-slot.sh --continuous
 ```
 
@@ -111,7 +118,9 @@ Key metrics monitored:
 
 ### Start the flow in NiFi UI
 
-### Generate test data:
+![Started Outbox Flow in NiFi UI](outbox.png)
+
+### Generate test data
 ```sh
 ./test-outbox.sh
 ```
@@ -120,16 +129,15 @@ Key metrics monitored:
 ```sh
 sleep 15
 docker exec postgres_cdc psql -U demo_user -d demo_db -c "SELECT COUNT(*) FROM outbox;"
+# result set should be greater than zero
 ```
 
-### Check success
-
-```sql
- count 
--------
-     0
-(1 row)
+### Generate test data continuously
+```sh
+# run continuously to prepare real-time monitoring below
+./test-outbox.sh --continuous
 ```
+
 
 ## Diagnostics and Monitoring
 
@@ -150,16 +158,6 @@ The diagnostic script will show:
 - Table information and row counts
 - Replication slot status and pending changes
 - **CDC Slot Monitoring** with WAL lag and slot activity metrics
-
-### Monitor CDC slots continuously
-
-For ongoing CDC slot monitoring:
-
-```sh
-./monitor-cdc-slot.sh --continuous
-```
-
-See the CDC Slot Monitoring section above for more details.
 
 
 ## Tear down
