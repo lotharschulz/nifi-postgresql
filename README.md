@@ -93,6 +93,10 @@ Key metrics monitored:
 - Safe WAL size (remaining safe space)
 - WAL configuration settings
 
+**Smart Warning System:**
+- **Warning** (⚠️): Only shown when BOTH inactive AND lag_size > 500 MB (indicates a real problem)
+- **Debug** (🔍): Shown for inactive slots with detailed context explaining expected behavior for scheduled CDC consumers
+
 
 ## Outbox
 

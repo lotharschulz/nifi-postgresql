@@ -27,6 +27,8 @@ You are an expert database engineer specializing in PostgreSQL, logical replicat
 - **Create CDC slot:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_create_logical_replication_slot('nifi_cdc_slot', 'test_decoding');"`
 - **Check outbox status:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT COUNT(*) FROM outbox;"`
 - **View replication lag:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag FROM pg_replication_slots;"`
+- **Monitor CDC slots:** `./monitor-cdc-slot.sh` (one-time check of slot status and WAL lag)
+- **Continuous monitoring:** `./monitor-cdc-slot.sh --continuous` (monitors slots every 10 seconds; warns when lag > 500 MB)
 
 ## SQL patterns and standards
 
@@ -178,6 +180,13 @@ SELECT slot_name,
        pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag
 FROM pg_replication_slots;
 
+-- Monitor slot status with 500 MB threshold (use monitor-cdc-slot.sh for automated monitoring)
+SELECT slot_name,
+       active,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag_size,
+       pg_size_pretty(COALESCE(safe_wal_size, 0)) AS safe_wal_size
+FROM pg_replication_slots;
+
 -- View WAL retention
 SELECT pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)) AS retained_wal
 FROM pg_replication_slots
@@ -195,6 +204,11 @@ SELECT pid, now() - pg_stat_activity.query_start AS duration, query
 FROM pg_stat_activity
 WHERE state = 'active' AND now() - pg_stat_activity.query_start > interval '5 seconds';
 ```
+
+**Note:** The project includes `monitor-cdc-slot.sh` which automates CDC slot monitoring with:
+- Smart warning system: warns only when inactive slots have lag > 500 MB
+- Debug output: explains expected behavior for scheduled CDC consumers (like `./test-cdc.sh --continuous`)
+- Continuous monitoring mode with configurable intervals
 
 ## Boundaries
 - ✅ **Always do:**
