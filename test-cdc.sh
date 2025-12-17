@@ -38,11 +38,11 @@ done
 echo -e "${GREEN}Testing CDC Pattern...${NC}\n"
 
 run_sql() {
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "$1"
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "$1"
 }
 
 run_sql_quiet() {
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c "$1"
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c "$1"
 }
 
 # Check/create replication slot
@@ -128,7 +128,7 @@ else
     echo -e "3. Watch CDC events being processed"
     echo -e "\n${YELLOW}Useful commands:${NC}"
     echo -e "  Watch NiFi logs:  ${CYAN}docker-compose logs -f nifi | grep CDC_CHANGE${NC}"
-    echo -e "  Peek changes:     ${CYAN}docker exec postgres_cdc psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c \"SELECT * FROM pg_logical_slot_peek_changes('nifi_cdc_slot', NULL, 10);\"${NC}"
+    echo -e "  Peek changes:     ${CYAN}docker exec nifi_database psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c \"SELECT * FROM pg_logical_slot_peek_changes('nifi_cdc_slot', NULL, 10);\"${NC}"
     echo -e "  Continuous test:  ${CYAN}./test-cdc.sh --continuous${NC}"
     
     echo -e "\n${RED}Important:${NC} CDC changes are ${RED}consumed${NC} when NiFi reads them."

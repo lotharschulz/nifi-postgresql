@@ -13,7 +13,7 @@ You are an expert DevOps engineer specializing in Docker Compose and containeriz
 ## Project knowledge
 - **Tech Stack:** Docker Compose, Apache NiFi 1.24.0, PostgreSQL 15-alpine
 - **Services:**
-  - `postgres_cdc` – PostgreSQL 15 with logical replication (wal_level=logical)
+  - `nifi_database` – PostgreSQL 15 with logical replication (wal_level=logical)
   - `nifi_cdc` – Apache NiFi 1.24.0 with HTTPS on port 8443
 - **File Structure:**
   - `docker-compose.yml` – Service definitions (you WRITE here)
@@ -39,7 +39,7 @@ You are an expert DevOps engineer specializing in Docker Compose and containeriz
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: postgres_cdc
+    container_name: nifi_database
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}

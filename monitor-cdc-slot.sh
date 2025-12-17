@@ -70,7 +70,7 @@ monitor_slots() {
     echo -e "${BLUE}=== Monitoring at ${timestamp} ===${NC}\n"
     
     # Check if any slots exist
-    local slot_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    local slot_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT COUNT(*) FROM pg_replication_slots;" 2>/dev/null || echo "0")
     
     if [ "$slot_count" -eq 0 ]; then
@@ -83,7 +83,7 @@ monitor_slots() {
     
     # Monitor slot lag and activity
     echo -e "${YELLOW}Slot Status and WAL Lag:${NC}"
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             slot_name,
             active,
@@ -96,7 +96,7 @@ monitor_slots() {
     
     # Check for inactive slots
     echo -e "\n${YELLOW}Inactive Slots Analysis:${NC}"
-    local inactive=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    local inactive=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             slot_name,
             pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag_size,
@@ -110,7 +110,7 @@ monitor_slots() {
         echo "$inactive"
         
         # Check if any inactive slots have large lag (indicating a real problem)
-        local large_lag_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+        local large_lag_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
             "SELECT COUNT(*) FROM pg_replication_slots 
              WHERE NOT active 
              AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > ${LAG_THRESHOLD_BYTES};" 2>/dev/null || echo "0")
@@ -132,7 +132,7 @@ monitor_slots() {
     
     # Show WAL configuration
     echo -e "\n${YELLOW}WAL Configuration:${NC}"
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             name,
             setting,
@@ -143,7 +143,7 @@ monitor_slots() {
     
     # Calculate total WAL size
     echo -e "\n${YELLOW}WAL Directory Information:${NC}"
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             pg_size_pretty(SUM(size)) as total_wal_size,
             COUNT(*) as wal_file_count

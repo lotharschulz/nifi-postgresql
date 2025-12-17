@@ -69,7 +69,7 @@ monitor_outbox() {
     echo -e "${BLUE}=== Monitoring at ${timestamp} ===${NC}\n"
     
     # Check if outbox table exists
-    local table_exists=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    local table_exists=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'outbox');" 2>/dev/null || echo "f")
     
     if [ "$table_exists" != "t" ]; then
@@ -79,7 +79,7 @@ monitor_outbox() {
     fi
     
     # Get pending events count
-    local pending_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    local pending_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT COUNT(*) FROM outbox;" 2>/dev/null || echo "0")
     
     if [ "$pending_count" -eq 0 ]; then
@@ -91,7 +91,7 @@ monitor_outbox() {
     
     # Show event type distribution
     echo -e "${YELLOW}Event Type Distribution:${NC}"
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             event_type,
             COUNT(*) as count,
@@ -103,7 +103,7 @@ monitor_outbox() {
     
     # Check for old events
     echo -e "\n${YELLOW}Event Age Analysis:${NC}"
-    local old_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    local old_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT COUNT(*) FROM outbox 
          WHERE created_at < NOW() - INTERVAL '${AGE_THRESHOLD_SECONDS} seconds';" 2>/dev/null || echo "0")
     
@@ -114,7 +114,7 @@ monitor_outbox() {
         
         # Show oldest events
         echo -e "${YELLOW}Oldest Unprocessed Events:${NC}"
-        docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+        docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
             "SELECT
                 id,
                 aggregate_type,
@@ -131,7 +131,7 @@ monitor_outbox() {
     
     # Show aggregate type distribution
     echo -e "\n${YELLOW}Aggregate Type Distribution:${NC}"
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             aggregate_type,
             COUNT(*) as count
@@ -142,7 +142,7 @@ monitor_outbox() {
     # Show recent events
     if [ "$pending_count" -gt 0 ]; then
         echo -e "\n${YELLOW}Recent Events (Last 5):${NC}"
-        docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+        docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
             "SELECT
                 id,
                 aggregate_type,
@@ -156,7 +156,7 @@ monitor_outbox() {
     
     # Show table statistics
     echo -e "\n${YELLOW}Outbox Table Statistics:${NC}"
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             pg_size_pretty(pg_total_relation_size('outbox')) as total_size,
             pg_size_pretty(pg_relation_size('outbox')) as table_size,
@@ -190,7 +190,7 @@ else
     echo -e "     ${BLUE}docker-compose logs nifi | grep OUTBOX_EVENT${NC}"
     echo -e ""
     echo -e "  3. ${CYAN}Clean Old Events:${NC} If accumulating, check consumer health"
-    echo -e "     ${BLUE}docker exec postgres_cdc psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c 'SELECT COUNT(*) FROM outbox;'${NC}"
+    echo -e "     ${BLUE}docker exec nifi_database psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c 'SELECT COUNT(*) FROM outbox;'${NC}"
     echo -e ""
     echo -e "  4. ${CYAN}Monitor Event Age:${NC} Old events indicate processing issues"
     echo -e "     ${BLUE}./nifi-diagnose.sh${NC}"

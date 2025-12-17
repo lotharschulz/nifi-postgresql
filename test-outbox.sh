@@ -34,11 +34,11 @@ done
 echo -e "${GREEN}Testing Outbox Pattern...${NC}\n"
 
 run_sql() {
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "$1"
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "$1"
 }
 
 run_sql_quiet() {
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c "$1"
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c "$1"
 }
 
 insert_order() {
@@ -98,7 +98,7 @@ else
     echo -e "3. Watch the outbox table get processed"
     echo -e "\n${YELLOW}Useful commands:${NC}"
     echo -e "  Watch NiFi logs:  ${CYAN}docker-compose logs -f nifi | grep OUTBOX_EVENT${NC}"
-    echo -e "  Check outbox:     ${CYAN}docker exec postgres_cdc psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c 'SELECT * FROM outbox;'${NC}"
+    echo -e "  Check outbox:     ${CYAN}docker exec nifi_database psql -U ${POSTGRES_USER} -d ${POSTGRES_DB} -c 'SELECT * FROM outbox;'${NC}"
     echo -e "  Continuous test:  ${CYAN}./test-outbox.sh --continuous${NC}"
 fi
 

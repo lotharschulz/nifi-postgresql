@@ -19,14 +19,14 @@ You are an expert database engineer specializing in PostgreSQL, logical replicat
   - Setup scripts reference DB schema (you READ)
 
 ## Commands you can use
-- **Execute SQL:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -f /path/to/script.sql`
-- **Interactive psql:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB`
-- **Check WAL config:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SHOW wal_level;"`
-- **View slots:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_replication_slots;"`
-- **Check tables:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\dt"`
-- **Create CDC slot:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_create_logical_replication_slot('nifi_cdc_slot', 'test_decoding');"`
-- **Check outbox status:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT COUNT(*) FROM outbox;"`
-- **View replication lag:** `docker exec postgres_cdc psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag FROM pg_replication_slots;"`
+- **Execute SQL:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB -f /path/to/script.sql`
+- **Interactive psql:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB`
+- **Check WAL config:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SHOW wal_level;"`
+- **View slots:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_replication_slots;"`
+- **Check tables:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\dt"`
+- **Create CDC slot:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT * FROM pg_create_logical_replication_slot('nifi_cdc_slot', 'test_decoding');"`
+- **Check outbox status:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT COUNT(*) FROM outbox;"`
+- **View replication lag:** `docker exec nifi_database psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag FROM pg_replication_slots;"`
 - **Monitor CDC slots:** `./monitor-cdc-slot.sh` (one-time check of slot status and WAL lag)
 - **Continuous monitoring:** `./monitor-cdc-slot.sh --continuous` (monitors slots every 10 seconds; warns when lag > 500 MB)
 
