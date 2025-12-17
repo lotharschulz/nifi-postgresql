@@ -43,7 +43,7 @@ docker-compose config
 
 make scripts executable in not done already
 ```sh
-chmod +x nifi-cdc-setup.sh nifi-outbox-setup.sh test-cdc.sh test-outbox.sh nifi-diagnose.sh monitor-cdc-slot.sh
+chmod +x nifi-cdc-setup.sh nifi-outbox-setup.sh test-cdc.sh test-outbox.sh nifi-diagnose.sh monitor-cdc-slot.sh monitor-outbox-slot.sh
 ```
 
 ## CDC
@@ -137,6 +137,27 @@ docker exec postgres_cdc psql -U demo_user -d demo_db -c "SELECT COUNT(*) FROM o
 # run continuously to prepare real-time monitoring below
 ./test-outbox.sh --continuous
 ```
+
+### Outbox Monitoring
+
+Monitor the outbox table for pending events and processing metrics:
+
+```sh
+./monitor-outbox-slot.sh
+# run continuously for real-time monitoring
+./monitor-outbox-slot.sh --continuous
+```
+
+The monitoring script provides insights into:
+- Pending events count and distribution
+- Event age analysis (warns if events are older than 5 minutes)
+- Aggregate type distribution
+- Recent events listing
+- Table size statistics
+
+**Warning System:**
+- **Warning** (⚠️): Shown when events are older than 5 minutes (indicates consumer issues)
+- **Success** (✓): All events are recent and being processed properly
 
 
 ## Diagnostics and Monitoring
