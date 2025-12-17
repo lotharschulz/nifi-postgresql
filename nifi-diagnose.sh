@@ -24,7 +24,7 @@ echo -e "${GREEN}╚════════════════════
 
 # Check Docker containers
 echo -e "${BLUE}=== Docker Containers ===${NC}\n"
-if docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "postgres_cdc|nifi_cdc"; then
+if docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "nifi_database|nifi_cdc"; then
     echo ""
 else
     echo -e "${RED}Containers not running! Start with: docker-compose up -d${NC}\n"
@@ -118,7 +118,7 @@ check_process_group "PostgreSQL Outbox Pattern"
 # Database checks
 echo -e "${BLUE}=== PostgreSQL Database ===${NC}\n"
 
-if docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT 1;" > /dev/null 2>&1; then
+if docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT 1;" > /dev/null 2>&1; then
     echo -e "${GREEN}✓ PostgreSQL is accessible${NC}"
 else
     echo -e "${RED}✗ Cannot connect to PostgreSQL${NC}"
@@ -127,8 +127,8 @@ fi
 # Check tables
 echo -e "\n${YELLOW}Tables:${NC}"
 for table in orders outbox; do
-    if docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT 1 FROM ${table} LIMIT 1;" > /dev/null 2>&1; then
-        count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c "SELECT COUNT(*) FROM ${table};")
+    if docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT 1 FROM ${table} LIMIT 1;" > /dev/null 2>&1; then
+        count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c "SELECT COUNT(*) FROM ${table};")
         echo -e "  ${GREEN}✓ ${table}${NC} (${count} rows)"
     else
         echo -e "  ${RED}✗ ${table} - not found${NC}"
@@ -137,10 +137,10 @@ done
 
 # Check replication slot
 echo -e "\n${YELLOW}Replication Slot:${NC}"
-slot=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+slot=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
     "SELECT slot_name || ' (' || plugin || ')' FROM pg_replication_slots WHERE slot_name = 'nifi_cdc_slot';")
 if [ -n "$slot" ]; then
-    pending=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    pending=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT COUNT(*) FROM pg_logical_slot_peek_changes('nifi_cdc_slot', NULL, 100);" 2>/dev/null || echo "?")
     echo -e "  ${GREEN}✓ ${slot}${NC} (${pending} pending changes)"
 else
@@ -153,7 +153,7 @@ echo -e "\n${BLUE}=== CDC Slot Monitoring (WAL & Slot Management) ===${NC}\n"
 echo -e "${YELLOW}Monitoring slot lag and activity...${NC}\n"
 
 # Check if any slots exist
-slot_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+slot_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
     "SELECT COUNT(*) FROM pg_replication_slots;")
 
 if [ "$slot_count" -eq 0 ]; then
@@ -161,7 +161,7 @@ if [ "$slot_count" -eq 0 ]; then
     echo -e "  Create a slot with: ${CYAN}./test-cdc.sh --setup${NC}\n"
 else
     # Monitor slot lag and activity
-    docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+    docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
             slot_name,
             active,
@@ -173,12 +173,12 @@ else
         ORDER BY slot_name;"
     
     # Check for inactive slots with large lag
-    inactive_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+    inactive_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT COUNT(*) FROM pg_replication_slots WHERE NOT active;")
     
     if [ "$inactive_count" -gt 0 ]; then
         # Check if any inactive slots have large lag (>100 MB)
-        large_lag_count=$(docker exec postgres_cdc psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
+        large_lag_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
             "SELECT COUNT(*) FROM pg_replication_slots 
              WHERE NOT active 
              AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > ${LAG_THRESHOLD_BYTES};" 2>/dev/null || echo "0")

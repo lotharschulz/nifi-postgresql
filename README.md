@@ -127,7 +127,7 @@ Key metrics monitored:
 
 ### Check
 ```sh
-docker exec postgres_cdc psql -U demo_user -d demo_db -c "SELECT COUNT(*) FROM outbox;"
+docker exec nifi_database psql -U demo_user -d demo_db -c "SELECT COUNT(*) FROM outbox;"
 # result set should be zero when all events are consumed
 ```
 
