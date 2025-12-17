@@ -23,13 +23,16 @@ sleep 120
 
 check nifi status
 ```sh
+# follow logs indefinitely
 docker-compose logs -f nifi
+# check existing logs (won't hang)
+docker-compose logs nifi | grep "NiFi has started"
 ```
 
 once you see `NiFi has started`, NiFi should be available at [https://localhost:8443/nifi](https://localhost:8443/nifi).
-_Please note_ the browser warning and accept the self-signed certificate.
+_Please_ note the browser warning and accept the self-signed certificate.
 
-Login with user name and password provided defined in your .env file.
+Login with user name and password provided defined in your `.env` file.
 
 
 verify environment variables are loaded
