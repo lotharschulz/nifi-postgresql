@@ -7,7 +7,7 @@ IFS=$'\n\t'
 # Based on best practices from: https://www.lotharschulz.info/2025/10/15/postgresql-cdc-best-practices-managing-wal-growth-and-replication-slots/
 
 # Configuration
-LAG_THRESHOLD_BYTES=104857600  # 100 MB - threshold for warning about inactive slots
+LAG_THRESHOLD_BYTES=524288000  # 500 MB - threshold for warning about inactive slots
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -116,14 +116,17 @@ monitor_slots() {
              AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > ${LAG_THRESHOLD_BYTES};" 2>/dev/null || echo "0")
         
         if [ "$large_lag_count" -gt 0 ]; then
-            echo -e "\n${RED}⚠ Warning: Inactive slots with large lag (>100 MB) detected!${NC}"
+            echo -e "\n${RED}⚠ Warning: Inactive slots with large lag (>500 MB) detected!${NC}"
             echo -e "${YELLOW}This indicates slots are not being consumed and WAL is accumulating.${NC}"
             echo -e "${YELLOW}Action: Investigate why consumers are not active or remove unused slots.${NC}"
         else
-            echo -e "\n${BLUE}ℹ Info: Slots are inactive but lag is low.${NC}"
-            echo -e "${CYAN}This is normal for scheduled CDC consumers (e.g., NiFi ExecuteSQL).${NC}"
-            echo -e "${CYAN}Slots are only 'active' when a consumer is connected and reading.${NC}"
-            echo -e "${CYAN}Low lag indicates the slot is being consumed regularly between connections.${NC}"
+            echo -e "\n${BLUE}🔍 Debug: Slots are inactive but lag is low.${NC}"
+            echo -e "${CYAN}Context:${NC}"
+            echo -e "${CYAN}  - This is appearing because flows like './test-cdc.sh --continuous' use${NC}"
+            echo -e "${CYAN}    pg_logical_slot_get_changes() via ExecuteSQL on a schedule (e.g., every 10 seconds)${NC}"
+            echo -e "${CYAN}  - This doesn't maintain a persistent connection${NC}"
+            echo -e "${CYAN}  - Inactive slots with low lag are very likely being consumed periodically${NC}"
+            echo -e "${CYAN}  - Slots are only 'active' when a consumer is actively connected and reading${NC}"
         fi
     fi
     

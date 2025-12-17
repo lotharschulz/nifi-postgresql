@@ -7,7 +7,7 @@ IFS=$'\n\t'
 source .env
 
 # Configuration
-LAG_THRESHOLD_BYTES=104857600  # 100 MB - threshold for warning about inactive slots
+LAG_THRESHOLD_BYTES=524288000  # 500 MB - threshold for warning about inactive slots
 
 NIFI_URL="https://${NIFI_HOST:-localhost}:${NIFI_PORT:-8443}"
 
@@ -184,12 +184,16 @@ else
              AND pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) > ${LAG_THRESHOLD_BYTES};" 2>/dev/null || echo "0")
         
         if [ "$large_lag_count" -gt 0 ]; then
-            echo -e "\n${RED}⚠ Warning: ${inactive_count} inactive slot(s) with large lag detected${NC}"
+            echo -e "\n${RED}⚠ Warning: ${inactive_count} inactive slot(s) with large lag (>500 MB) detected${NC}"
             echo -e "${YELLOW}Inactive slots with large lag can cause WAL accumulation and disk space issues.${NC}"
             echo -e "${YELLOW}Consider investigating why consumers are not active or removing unused slots.${NC}\n"
         else
-            echo -e "\n${BLUE}ℹ Info: ${inactive_count} inactive slot(s) with low lag detected${NC}"
-            echo -e "${CYAN}This is normal for scheduled CDC consumers (e.g., NiFi). Low lag indicates regular consumption.${NC}\n"
+            echo -e "\n${BLUE}🔍 Debug: ${inactive_count} inactive slot(s) with low lag detected${NC}"
+            echo -e "${CYAN}Context:${NC}"
+            echo -e "${CYAN}  - This is appearing because flows like './test-cdc.sh --continuous' use${NC}"
+            echo -e "${CYAN}    pg_logical_slot_get_changes() via ExecuteSQL on a schedule (e.g., every 10 seconds)${NC}"
+            echo -e "${CYAN}  - This doesn't maintain a persistent connection${NC}"
+            echo -e "${CYAN}  - Inactive slots with low lag are very likely being consumed periodically${NC}\n"
         fi
     else
         echo -e "\n${GREEN}✓ All replication slots are active${NC}\n"
