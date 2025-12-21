@@ -61,18 +61,7 @@ chmod +x nifi-cdc-setup.sh nifi-outbox-setup.sh test-cdc.sh test-outbox.sh nifi-
 
 ![Started CDC Flow in NiFi UI](./CDC.png)
 
-### Create relication slots (if not existing)
-
-```sh
-./test-cdc.sh --setup
-```
-
 ### Generate test data
-```sh
-./test-cdc.sh
-```
-
-### Test CDC
 
 ```sh
 ./test-cdc.sh

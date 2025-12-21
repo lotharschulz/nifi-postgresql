@@ -3,7 +3,6 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # Setup script for Apache NiFi CDC Pattern with PostgreSQL Logical Replication
-# Fixed version - properly configures all controller services and processors
 
 DRY_RUN=0
 for arg in "$@"; do
@@ -22,7 +21,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}Starting NiFi CDC Pattern Setup (Fixed Version)...${NC}"
 echo -e "${YELLOW}Using NiFi URL: ${NIFI_URL}${NC}"
 echo -e "${YELLOW}PostgreSQL Host: ${POSTGRES_HOST} Port: ${POSTGRES_PORT} DB: ${POSTGRES_DB}${NC}"
 
@@ -125,7 +123,6 @@ configure_processor() {
     local rev=$(curl -sk "${NIFI_URL}/nifi-api/processors/${proc_id}" \
         -H "Authorization: Bearer ${TOKEN}" | jq -r '.revision.version')
     
-    # Build the full config with revision
     local full_config=$(cat <<EOF
 {
     "revision": {"version": ${rev}},
@@ -263,12 +260,13 @@ EOF
     configure_processor "$EXEC_SQL_ID" "$EXEC_SQL_CONFIG" "ExecuteSQL"
     
     # 2. ConvertRecord - Avro to JSON
+    # FIX: Use "Record Reader" and "Record Writer" (NiFi 2.0 property names)
     CONVERT_ID=$(create_processor "$PG_ID" "org.apache.nifi.processors.standard.ConvertRecord" "Convert to JSON" 400 250)
     CONVERT_CONFIG=$(cat <<EOF
 {
     "properties": {
-        "record-reader": "${AVRO_READER_ID}",
-        "record-writer": "${JSON_WRITER_ID}"
+        "Record Reader": "${AVRO_READER_ID}",
+        "Record Writer": "${JSON_WRITER_ID}"
     },
     "schedulingPeriod": "0 sec",
     "autoTerminatedRelationships": ["failure"]
