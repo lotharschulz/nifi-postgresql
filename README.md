@@ -14,12 +14,7 @@ This guide walks you through testing both the CDC (Change Data Capture) and Outb
 docker-compose up -d
 ```
 
-## Wait for NiFi to be ready
-```sh
-sleep 120
-```
-
-### Status check
+### Status check, you may have to wait a bit
 
 check nifi status
 ```sh
