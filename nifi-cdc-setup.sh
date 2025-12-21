@@ -260,7 +260,6 @@ EOF
     configure_processor "$EXEC_SQL_ID" "$EXEC_SQL_CONFIG" "ExecuteSQL"
     
     # 2. ConvertRecord - Avro to JSON
-    # FIX: Use "Record Reader" and "Record Writer" (NiFi 2.0 property names)
     CONVERT_ID=$(create_processor "$PG_ID" "org.apache.nifi.processors.standard.ConvertRecord" "Convert to JSON" 400 250)
     CONVERT_CONFIG=$(cat <<EOF
 {
