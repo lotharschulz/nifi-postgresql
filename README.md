@@ -1,6 +1,6 @@
 # Apache NiFi CDC & Outbox Pattern Testing Guide
 
-This guide walks you through testing both the CDC (Change Data Capture) and Outbox patterns with PostgreSQL and Apache NiFi.
+This is testing both the [**CDC (Change Data Capture)** and **Outbox**](https://www.lotharschulz.info/2022/12/08/cdc-and-outbox-pattern-same-same-but-different/) patterns with PostgreSQL and Apache NiFi.
 
 ## Prerequisites
 
