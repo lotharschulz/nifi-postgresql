@@ -18,10 +18,14 @@ docker-compose up -d
 
 check nifi status
 ```sh
-# follow logs indefinitely
+# check regularly if the nifi endpoint is available
+until curl -s -k https://localhost:8443/nifi > /dev/null; do sleep 2; done && echo "NiFi is ready"
+
+# follow docker compose logs indefinitely
 docker-compose logs -f nifi
+
 # check existing logs (won't hang)
-docker-compose logs nifi | grep "NiFi has started"
+docker-compose logs nifi 2>&1 | grep -E "Started Application|listening"
 ```
 
 once you see `NiFi has started`, NiFi should be available at [https://localhost:8443/nifi](https://localhost:8443/nifi).
