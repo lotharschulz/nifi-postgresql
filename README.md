@@ -19,7 +19,7 @@ docker-compose up -d
 check nifi status
 ```sh
 # check regularly if the nifi endpoint is available
-until curl -s -k https://localhost:8443/nifi > /dev/null; do sleep 2; done && echo "NiFi is ready"
+until curl -s -k https://localhost:8443/nifi > /dev/null; do sleep 1; done && echo "NiFi is ready"
 
 # follow docker compose logs indefinitely
 docker-compose logs -f nifi
