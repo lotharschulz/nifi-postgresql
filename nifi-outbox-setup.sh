@@ -319,7 +319,7 @@ EOF
         "Log Level": "info",
         "Log Payload": "true",
         "Attributes to Log": "event.*",
-        "Log prefix": "OUTBOX_EVENT"
+        "Log Prefix": "OUTBOX_EVENT"
     },
     "schedulingPeriod": "0 sec",
     "autoTerminatedRelationships": ["success"]

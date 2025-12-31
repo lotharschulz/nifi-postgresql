@@ -247,7 +247,7 @@ main() {
 {
     "properties": {
         "Database Connection Pooling Service": "${DBCP_ID}",
-        "SQL select query": "SELECT * FROM pg_logical_slot_get_changes('nifi_cdc_slot', NULL, NULL, 'include-timestamp', 'on');",
+        "SQL Query": "SELECT * FROM pg_logical_slot_get_changes('nifi_cdc_slot', NULL, NULL);",
         "Max Wait Time": "0 seconds"
     },
     "schedulingPeriod": "10 sec",
@@ -328,7 +328,7 @@ EOF
         "Log Level": "info",
         "Log Payload": "true",
         "Attributes to Log": "cdc.*",
-        "Log prefix": "CDC_CHANGE"
+        "Log Prefix": "CDC_CHANGE"
     },
     "schedulingPeriod": "0 sec",
     "autoTerminatedRelationships": ["success"]
