@@ -327,8 +327,7 @@ EOF
     "properties": {
         "Log Level": "info",
         "Log Payload": "true",
-        "Attributes to Log": "cdc.*",
-        "Log prefix": "CDC_CHANGE"
+        "Attributes to Log": "cdc.*"
     },
     "schedulingPeriod": "0 sec",
     "autoTerminatedRelationships": ["success"]
