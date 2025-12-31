@@ -318,7 +318,8 @@ EOF
     "properties": {
         "Log Level": "info",
         "Log Payload": "true",
-        "Attributes to Log": "event.*"
+        "Attributes to Log": "event.*",
+        "Log Prefix": "OUTBOX_EVENT"
     },
     "schedulingPeriod": "0 sec",
     "autoTerminatedRelationships": ["success"]
