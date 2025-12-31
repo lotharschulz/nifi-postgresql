@@ -2,7 +2,7 @@
 
 This is testing both the [**CDC (Change Data Capture)** and **Outbox**](https://www.lotharschulz.info/2022/12/08/cdc-and-outbox-pattern-same-same-but-different/) patterns with PostgreSQL and Apache NiFi.
 
-Please also the related blog post at: XXXX
+Please see also the related blog post at: XXXX
 
 ## Prerequisites
 
