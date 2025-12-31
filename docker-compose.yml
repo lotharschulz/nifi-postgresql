@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.7-alpine3.23
     container_name: nifi_database
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -21,7 +21,7 @@ services:
       - "max_wal_senders=4"
 
   nifi:
-    image: apache/nifi:2.0.0
+    image: apache/nifi:2.7.2
     container_name: nifi_cdc
     ports:
       - "8443:8443"
