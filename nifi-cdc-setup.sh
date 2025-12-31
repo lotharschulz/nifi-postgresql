@@ -247,7 +247,7 @@ main() {
 {
     "properties": {
         "Database Connection Pooling Service": "${DBCP_ID}",
-        "SQL select query": "SELECT * FROM pg_logical_slot_get_changes('nifi_cdc_slot', NULL, NULL, 'include-timestamp', 'on');",
+        "SQL select query": "SELECT * FROM pg_logical_slot_get_changes('nifi_cdc_slot', NULL, NULL);",
         "Max Wait Time": "0 seconds"
     },
     "schedulingPeriod": "10 sec",
