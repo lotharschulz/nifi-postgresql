@@ -7,7 +7,7 @@ ALTER SYSTEM SET max_wal_senders = 10;
 -- Set max_slot_wal_keep_size to prevent WAL file bloat
 ALTER SYSTEM SET max_slot_wal_keep_size = '20GB';
 
--- Create our business table
+-- Create the business table
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     customer_name VARCHAR(255) NOT NULL,
