@@ -78,7 +78,7 @@ monitor_outbox() {
         return
     fi
     
-    # Get pending events count
+    # Summary -> Get Pending Events Count
     local pending_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
         "SELECT COUNT(*) FROM outbox;" 2>/dev/null || echo "0")
     
@@ -89,7 +89,7 @@ monitor_outbox() {
         echo -e "${YELLOW}⚠ Pending events in outbox: ${pending_count}${NC}\n"
     fi
     
-    # Show event type distribution
+    # Summary -> Event Type Distribution (event type overview)
     echo -e "${YELLOW}Event Type Distribution:${NC}"
     docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
@@ -101,6 +101,7 @@ monitor_outbox() {
         GROUP BY event_type
         ORDER BY count DESC;" 2>/dev/null
     
+    # Health status/alerts -> Event Age Analysis (identifies problems/warnings)
     # Check for old events
     echo -e "\n${YELLOW}Event Age Analysis:${NC}"
     local old_count=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -At -c \
@@ -129,7 +130,7 @@ monitor_outbox() {
         echo -e "${GREEN}✓ No old events - all events are recent (< $((AGE_THRESHOLD_SECONDS / 60)) minutes)${NC}"
     fi
     
-    # Show aggregate type distribution
+    # Breakdowns -> Aggregate Type Distribution (breakdown by aggregate type)
     echo -e "\n${YELLOW}Aggregate Type Distribution:${NC}"
     docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
@@ -139,6 +140,7 @@ monitor_outbox() {
         GROUP BY aggregate_type
         ORDER BY count DESC;" 2>/dev/null
     
+    # Sample data -> Recent Events (actual event records)
     # Show recent events
     if [ "$pending_count" -gt 0 ]; then
         echo -e "\n${YELLOW}Recent Events (Last 5):${NC}"
@@ -154,6 +156,7 @@ monitor_outbox() {
             LIMIT 5;" 2>/dev/null
     fi
     
+    # Technical metrics -> Table Statistics (infrastructure/sizing info)
     # Show table statistics
     echo -e "\n${YELLOW}Outbox Table Statistics:${NC}"
     docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \

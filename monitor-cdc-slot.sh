@@ -81,7 +81,7 @@ monitor_slots() {
     
     echo -e "${YELLOW}Total replication slots: ${slot_count}${NC}\n"
     
-    # Monitor slot lag and activity
+    # Summary -> Slot Status and WAL Lag (overview of all slots)
     echo -e "${YELLOW}Slot Status and WAL Lag:${NC}"
     docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
@@ -94,7 +94,7 @@ monitor_slots() {
         FROM pg_replication_slots
         ORDER BY slot_name;"
     
-    # Check for inactive slots
+    # Health status/alerts -> Inactive Slots Analysis (identifies problematic slots)
     echo -e "\n${YELLOW}Inactive Slots Analysis:${NC}"
     local inactive=$(docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
@@ -130,7 +130,7 @@ monitor_slots() {
         fi
     fi
     
-    # Show WAL configuration
+    # Breakdowns -> WAL Configuration (system settings)
     echo -e "\n${YELLOW}WAL Configuration:${NC}"
     docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
@@ -141,7 +141,24 @@ monitor_slots() {
         WHERE name IN ('wal_level', 'max_replication_slots', 'max_wal_senders', 'max_slot_wal_keep_size')
         ORDER BY name;"
     
-    # Calculate total WAL size
+    # Sample data -> Slots Ordered by Lag (shows which slots have most lag)
+    if [ "$slot_count" -gt 0 ]; then
+        echo -e "\n${YELLOW}Slots Ordered by Lag Size:${NC}"
+        docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
+            "SELECT
+                slot_name,
+                active,
+                pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS lag_size,
+                CASE 
+                    WHEN active THEN 'consuming'
+                    ELSE 'idle'
+                END as status,
+                restart_lsn
+            FROM pg_replication_slots
+            ORDER BY pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) DESC;" 2>/dev/null
+    fi
+
+    # Technical metrics -> WAL Directory Information (storage usage)
     echo -e "\n${YELLOW}WAL Directory Information:${NC}"
     docker exec nifi_database psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c \
         "SELECT
