@@ -27,7 +27,7 @@ CREATE TABLE outbox (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create index for efficient CDC polling
+-- Create index for efficient CDC
 CREATE INDEX idx_outbox_created_at ON outbox(created_at);
 
 -- Function to automatically create outbox events
