@@ -334,7 +334,7 @@ EOF
 {
     "properties": {
         "JDBC Connection Pool": "${DBCP_ID}",
-        "putsql-sql-statement": "DELETE FROM outbox WHERE id = \${event.id}",
+        "SQL Statement": "DELETE FROM outbox WHERE id = \${event.id}",
         "Support Fragmented Transactions": "false"
     },
     "schedulingPeriod": "0 sec",
