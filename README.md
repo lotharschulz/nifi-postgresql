@@ -1,6 +1,6 @@
 # Apache NiFi CDC & Outbox Pattern Testing Guide
 
-Please see also the related blog post: [Building Real Time Data Pipelines with CDC, Outbox, PostgreSQL, and Apache NiFi](https://www.lotharschulz.info/2026/01/04/building-real-time-data-pipelines-with-cdc-outbox-postgresql-and-apache-nifi/)
+This repository accompanies: [Building Real Time Data Pipelines with CDC, Outbox, PostgreSQL, and Apache NiFi](https://www.lotharschulz.info/2026/01/04/building-real-time-data-pipelines-with-cdc-outbox-postgresql-and-apache-nifi/)
 
 ## Prerequisites
 
