@@ -1,9 +1,9 @@
 -- Enable logical replication
 ALTER SYSTEM SET wal_level = 'logical';
 -- Increase max replication slots
-ALTER SYSTEM SET max_replication_slots = 10;
+ALTER SYSTEM SET max_replication_slots = 4;
 -- Increase max_wal_senders to support more replication connections
-ALTER SYSTEM SET max_wal_senders = 10;
+ALTER SYSTEM SET max_wal_senders = 4;
 -- Set max_slot_wal_keep_size to prevent WAL file bloat
 ALTER SYSTEM SET max_slot_wal_keep_size = '20GB';
 
