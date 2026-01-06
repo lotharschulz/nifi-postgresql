@@ -34,7 +34,7 @@ services:
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_logs:/opt/nifi/nifi-current/logs
       # Mount the PostgreSQL JDBC driver directly
-      - ./jdbc-driver/postgresql-42.7.1.jar:/opt/nifi/nifi-current/lib/postgresql-42.7.1.jar
+      - ./jdbc-driver/postgresql-42.7.8.jar:/opt/nifi/nifi-current/lib/postgresql-42.7.1.jar
     depends_on:
       - postgres
 
