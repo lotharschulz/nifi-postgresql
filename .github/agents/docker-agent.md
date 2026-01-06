@@ -91,7 +91,7 @@ services:
       - nifi_state:/opt/nifi/nifi-current/state
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_logs:/opt/nifi/nifi-current/logs
-      - ./jdbc-driver/postgresql-42.7.1.jar:/opt/nifi/nifi-current/lib/postgresql-42.7.1.jar
+      - ./jdbc-driver/postgresql-42.7.8.jar:/opt/nifi/nifi-current/lib/postgresql-42.7.8.jar
     depends_on:
       postgres:
         condition: service_healthy

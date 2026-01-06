@@ -221,7 +221,7 @@ main() {
     # Create Controller Services
     echo -e "${YELLOW}Creating controller services...${NC}"
     
-    DBCP_PROPS='{"Database Connection URL":"jdbc:postgresql://#{DB_HOST}:#{DB_PORT}/#{DB_NAME}","Database Driver Class Name":"org.postgresql.Driver","database-driver-locations":"/opt/nifi/nifi-current/lib/postgresql-42.7.1.jar","Database User":"#{DB_USER}","Password":"#{DB_PASSWORD}","Max Total Connections":"8","Validation query":"SELECT 1"}'
+    DBCP_PROPS='{"Database Connection URL":"jdbc:postgresql://#{DB_HOST}:#{DB_PORT}/#{DB_NAME}","Database Driver Class Name":"org.postgresql.Driver","database-driver-locations":"/opt/nifi/nifi-current/lib/postgresql-42.7.8.jar","Database User":"#{DB_USER}","Password":"#{DB_PASSWORD}","Max Total Connections":"8","Validation query":"SELECT 1"}'
     DBCP_ID=$(create_controller_service "$PG_ID" "PostgreSQL Connection Pool" "org.apache.nifi.dbcp.DBCPConnectionPool" "$DBCP_PROPS")
     echo -e "${GREEN}Created DBCP: ${DBCP_ID}${NC}"
     
